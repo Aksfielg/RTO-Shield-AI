@@ -1,0 +1,15 @@
+RTO Shield AI - Model 1  |  Data Provenance Record
+============================================================
+
+File     : DataCoSupplyChainDataset.csv
+Path     : C:\Users\risha\Downloads\rto_shield_model1\data\raw\DataCoSupplyChainDataset.csv
+Size     : 95,910,149 bytes  (91.47 MB)
+SHA-256  : fa6d022ed437155e1a2f0378710602848703c8a7f203f7ff5d77805bf8480aa6
+
+Citation:
+  Constante, F., Silva, F., Pereira, A. (2019).
+  "DataCo Smart Supply Chain for Big Data Analysis."
+  Mendeley Data, V5.
+  DOI: 10.17632/8gx2fvg2k6.5
+  Licence: CC BY 4.0
+  Source: https://data.mendeley.com/datasets/8gx2fvg2k6/5

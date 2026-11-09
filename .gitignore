@@ -1,0 +1,23 @@
+# ── Environment & Caches ────────────────────────────────────────
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.mpl_cache/
+.pytest_cache/
+
+# ── Large Files (>100MB rejected by GitHub) ────────────────────
+# Raw dataset is 96MB; external link provided in README & MODEL_CARD
+data/raw/DataCoSupplyChainDataset.csv
+# Random forest artifact is 566MB (exceeds GitHub 100MB limit)
+models/random_forest.joblib
+
+# ── Notebooks ──────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── OS / IDE ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

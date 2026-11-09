@@ -1,0 +1,51 @@
+RTO Shield AI — Full Pipeline Run
+Started:  2026-11-09 00:53:33
+Python:   C:\Users\risha\AppData\Local\Programs\Python\Python313\python.exe
+======================================================================
+
+======================================================================
+[2026-11-09 00:53:33]  STARTING: 01_prepare.py
+======================================================================
+
+======================================================================
+  RTO Shield AI – Step 2: Build Order-Level Feature Table
+======================================================================
+
+[1/7] Loading raw CSV …
+      Raw rows: 180,519  |  columns: 53
+
+[2/7] Parsing order and shipping dates …
+
+[3/7] Running date-rule check …
+
+[date-rule check]
+  (shipping_date - order_date).days == Days_for_shipping_(real)
+  Match rate: 97.42% of rows
+Traceback (most recent call last):
+  File "C:\Users\risha\Downloads\rto_shield_model1\src\01_prepare.py", line 603, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\risha\Downloads\rto_shield_model1\src\01_prepare.py", line 456, in main
+    rule = check_date_rule(raw)
+  File "C:\Users\risha\Downloads\rto_shield_model1\src\01_prepare.py", line 122, in check_date_rule
+    print(
+    ~~~~~^
+        f"  \u2705 {pct_match:.1f}% > 90% \u2192 shipping_date already encodes when the\n"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        f"      so it is the earliest we could label an order as late or on-time.)"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\risha\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>
+
+[2026-11-09 00:53:37]  FINISHED: 01_prepare.py  |  exit_code=1  |  elapsed=3.5s
+❌  01_prepare.py FAILED (exit code 1) — stopping pipeline.
+
+======================================================================
+Pipeline complete.  Elapsed: 0.1 min
+Failures: ['01_prepare.py']
+Log saved to: C:\Users\risha\Downloads\rto_shield_model1\outputs\run_log.txt
