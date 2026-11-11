@@ -36,6 +36,7 @@ SCRIPTS = [
     "05_tune_multiseed.py",
     "06_robustness.py",
     "07_predict_demo.py",
+    "08_sanity_checks.py",
 ]
 
 
