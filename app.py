@@ -1295,22 +1295,22 @@ def page_impact_simulator(artifacts_arg=None, test_df_arg=None):
         policy_selector = st.radio(
             "Select Triage Policy:",
             [
-                "Flag High tier (Score ≥ 0.699)",
+                "Flag High tier",
                 "Flag by threshold",
-                "Flag all (Contact Everyone)",
+                "Flag all",
             ],
             index=0,
         )
 
         high_min = artifacts["thresholds"]["tier_cutoffs"]["high_min"]  # 0.6988
 
-        if policy_selector == "Flag High tier (Score ≥ 0.699)":
+        if policy_selector == "Flag High tier":
             thresh = high_min
             target_mask = (cal_p >= thresh)
             policy_label = f"Flag High Tier (Score ≥ {high_min:.3f})"
         elif policy_selector == "Flag by threshold":
             thresh = st.slider(
-                "Custom Risk Score Threshold",
+                "Select Risk Score Threshold",
                 min_value=0.05,
                 max_value=0.95,
                 value=0.399,
@@ -1322,7 +1322,7 @@ def page_impact_simulator(artifacts_arg=None, test_df_arg=None):
         else:  # Flag all
             thresh = 0.0
             target_mask = np.ones(N, dtype=bool)
-            policy_label = "Flag All (Contact Everyone)"
+            policy_label = "Flag All"
 
         st.markdown('</div>', unsafe_allow_html=True)
 
