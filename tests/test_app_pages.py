@@ -90,6 +90,9 @@ def test_app_pages_and_components():
     # 6. Robustness
     app.page_robustness(tables)
 
-    # 7. Limitations
+    # 7. Impact Simulator
+    app.page_impact_simulator()
+
+    # 8. Limitations
     app.page_limitations()
 
