@@ -57,7 +57,7 @@ from config import (
     TARGET_COL, TRAIN_FRAC, VAL_FRAC,
 )
 from features import _select_feature_cols
-from reasons import get_reason_codes, _NUMERIC_LABELS
+from reasons import get_reason_codes, group_shap_values, _NUMERIC_LABELS
 import predict
 
 # ---------------------------------------------------------------------------
@@ -261,35 +261,26 @@ def render_shap_waterfall(
     feat_names: list[str],
     max_display: int = 10,
 ) -> plt.Figure:
-    """Generate a clean SHAP waterfall figure using friendly names and raw data."""
+    """Generate a clean SHAP waterfall figure using grouped parent features and raw unscaled data."""
     df_row = predict._dict_to_df(order_dict)
     X_raw  = _select_feature_cols(df_row, CATEGORICAL_FEATURES, NUMERIC_FEATURES)
     X_enc  = prep.transform(X_raw)
 
     sv = explainer(X_enc)
+    sv_flat = sv.values[0]
 
-    # Format feature names for display
-    clean_names = []
-    for fn in feat_names:
-        if fn.startswith("num__"):
-            col = fn[len("num__"):]
-            clean_names.append(_NUMERIC_LABELS.get(col, col))
-        elif fn.startswith("cat__"):
-            clean_names.append(fn.replace("cat__", "").replace("_", " "))
-        else:
-            clean_names.append(fn)
+    labels, values, val_strs = group_shap_values(sv_flat, feat_names, order_dict)
 
-    # Explanation object with cleaned names
     clean_exp = shap.Explanation(
-        values=sv.values[0],
+        values=values,
         base_values=sv.base_values[0],
-        data=X_enc[0],
-        feature_names=clean_names,
+        data=val_strs,
+        feature_names=labels,
     )
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
     shap.plots.waterfall(clean_exp, max_display=max_display, show=False)
-    plt.title("SHAP Feature Contributions to Risk Score", fontsize=12, pad=12)
+    plt.title("SHAP Feature Contributions (Grouped Business Factors)", fontsize=12, pad=12)
     plt.tight_layout()
     return fig
 
@@ -382,11 +373,13 @@ def page_overview():
 
         st.subheader("Decisioning Policy (Thresholds)")
         st.markdown("""
-        - **Optimal Operational Threshold**: `0.3538` (maximises F1 score on validation set).
-        - **Risk Tier Cutoffs** (Validation 33rd & 67th percentiles):
-          - **Low**: Score < 0.3826 (Standard flow, no intervention)
-          - **Medium**: 0.3826 ≤ Score < 0.7544 (Monitor, consider express carrier)
-          - **High**: Score ≥ 0.7544 (Proactive customer confirmation, route inspection)
+        - **Operational Flag Threshold (High Tier)**: `0.6988` (Flagged = High tier, Precision = 88.4%, flags top ~33% of orders).
+        - **Precision >= 80% Threshold**: `0.3994` (Precision = 85.1%, Recall = 59.0%, flags top 38.2% of orders).
+        - **Max F1 Threshold**: `0.3538` (maximises F1 score on validation set, Recall = 95.5%).
+        - **Risk Tier Cutoffs** (Validation 33rd & 67th percentiles of calibrated scores):
+          - **Low Risk**: Score < 0.3749 (Standard dispatch, no friction, empirical late rate: 28.9%)
+          - **Medium Risk**: 0.3749 ≤ Score < 0.6988 (Monitor carrier pickup SLA, empirical late rate: 42.2%)
+          - **High Risk**: Score ≥ 0.6988 (Flagged for proactive intervention, empirical late rate: 88.0%)
         """)
 
 
@@ -399,9 +392,15 @@ def page_score_order(artifacts):
     st.markdown('<div class="sub-title">Evaluate pre-dispatch risk for a single order in real time</div>', unsafe_allow_html=True)
 
     # Preset selector
+    # Preset selector
     preset_choice = st.radio(
         "Load an Order Profile Preset:",
-        ["Custom Input", "Preset: High Risk (First Class Express)", "Preset: Low Risk (Same Day Morning)", "Preset: Medium Risk (Standard Class)"],
+        [
+            "Custom Input",
+            "Preset: High Risk (Real Test Order #77188 - First Class)",
+            "Preset: Medium Risk (Real Test Order #72160 - Standard Class)",
+            "Preset: Low Risk (Real Test Order #67097 - Same Day)",
+        ],
         horizontal=True
     )
 
@@ -420,26 +419,30 @@ def page_score_order(artifacts):
         "order_month": 6,
     }
 
-    if preset_choice == "Preset: High Risk (First Class Express)":
+    if preset_choice == "Preset: High Risk (Real Test Order #77188 - First Class)":
         defaults.update({
             "shipping_mode": "First Class", "sched_days": 1, "payment_type": "CASH",
-            "order_value": 320.0, "n_items": 4, "discount_rate": 0.18,
-            "market": "LATAM", "order_hour": 19, "order_dow": "Saturday", "order_month": 11
+            "order_value": 187.76, "n_items": 2, "discount_rate": 0.16,
+            "market": "LATAM", "department": "Footwear", "segment": "Consumer",
+            "order_hour": 18, "order_dow": "Friday", "order_month": 12
         })
-    elif preset_choice == "Preset: Low Risk (Same Day Morning)":
+    elif preset_choice == "Preset: Medium Risk (Real Test Order #72160 - Standard Class)":
         defaults.update({
-            "shipping_mode": "Same Day", "sched_days": 0, "payment_type": "PAYMENT",
-            "order_value": 85.0, "n_items": 1, "discount_rate": 0.0,
-            "market": "USCA", "order_hour": 7, "order_dow": "Tuesday", "order_month": 4
+            "shipping_mode": "Standard Class", "sched_days": 4, "payment_type": "PAYMENT",
+            "order_value": 276.92, "n_items": 4, "discount_rate": 0.07,
+            "market": "Europe", "department": "Apparel", "segment": "Consumer",
+            "order_hour": 14, "order_dow": "Friday", "order_month": 10
         })
-    elif preset_choice == "Preset: Medium Risk (Standard Class)":
+    elif preset_choice == "Preset: Low Risk (Real Test Order #67097 - Same Day)":
         defaults.update({
-            "shipping_mode": "Standard Class", "sched_days": 4, "payment_type": "TRANSFER",
-            "order_value": 190.0, "n_items": 3, "discount_rate": 0.08,
-            "market": "Pacific Asia", "order_hour": 15, "order_dow": "Thursday", "order_month": 8
+            "shipping_mode": "Same Day", "sched_days": 0, "payment_type": "DEBIT",
+            "order_value": 179.99, "n_items": 1, "discount_rate": 0.10,
+            "market": "Europe", "department": "Apparel", "segment": "Consumer",
+            "order_hour": 11, "order_dow": "Thursday", "order_month": 8
         })
 
     dow_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    mode_day_map = {"Same Day": 0, "First Class": 1, "Second Class": 2, "Standard Class": 4}
 
     with st.form("score_order_form"):
         st.subheader("Order Specification")
@@ -450,13 +453,14 @@ def page_score_order(artifacts):
                 ["Standard Class", "First Class", "Second Class", "Same Day"],
                 index=["Standard Class", "First Class", "Second Class", "Same Day"].index(defaults["shipping_mode"])
             )
-            # Dynamic default scheduled days based on mode
-            mode_day_map = {"Same Day": 0, "First Class": 1, "Second Class": 2, "Standard Class": 4}
+            # Dynamic default scheduled days locked based on shipping mode
             default_sched = mode_day_map.get(shipping_mode, defaults["sched_days"])
             scheduled_days = st.number_input(
-                "Scheduled Days",
+                "Scheduled Shipping Days (Locked)",
                 min_value=0, max_value=6,
-                value=int(defaults["sched_days"])
+                value=int(default_sched),
+                disabled=True,
+                help="Contracted delivery SLA days are fixed by shipping mode (Same Day: 0, First Class: 1, Second Class: 2, Standard Class: 4)."
             )
             payment_type = st.selectbox(
                 "Payment Type",
@@ -492,13 +496,14 @@ def page_score_order(artifacts):
             order_dow = dow_names.index(order_dow_str)
             order_month = st.slider("Order Month", min_value=1, max_value=12, value=int(defaults["order_month"]))
 
-        submitted = st.form_submit_button("🛡️ Compute Risk Score", use_container_width=True)
+        submitted = st.form_submit_button("🛡️ Compute Risk Score", width="stretch")
 
     if submitted or preset_choice != "Custom Input":
-        # Construct pre-dispatch feature dictionary
+        # Construct pre-dispatch feature dictionary (lock scheduled_days to shipping mode mode)
+        final_sched = mode_day_map.get(shipping_mode, default_sched)
         order_dict = {
             "Shipping_Mode": shipping_mode,
-            "Days_for_shipment_scheduled": scheduled_days,
+            "Days_for_shipment_scheduled": final_sched,
             "Type": payment_type,
             "order_value": order_value,
             "n_items": n_items,
@@ -524,41 +529,45 @@ def page_score_order(artifacts):
         res_col1, res_col2, res_col3 = st.columns([1.1, 1, 1.2])
 
         thr = artifacts["thresholds"]
-        low_cut  = thr["tier_cutoffs"]["low_max"]
-        high_cut = thr["tier_cutoffs"]["high_min"]
-        flag_cut = thr["thresholds"]["final_tuned_max_f1"]
+        low_cut  = thr["tier_cutoffs"]["low_max"]   # 0.3749
+        high_cut = thr["tier_cutoffs"]["high_min"]  # 0.6988
+        flag_cut = high_cut                         # Flagged defined as High tier (score >= 0.6988)
+        p80_cut  = thr["thresholds"].get("precision_80", 0.3994)
+        disp_score = result.get("display_score", f"{result['risk_score']*100:.1f}%")
 
         with res_col1:
             gauge_fig = render_risk_gauge(result["risk_score"], low_cut, high_cut, flag_cut)
-            st.plotly_chart(gauge_fig, use_container_width=True)
+            st.plotly_chart(gauge_fig, width="stretch")
+            st.markdown(f"<div style='text-align:center; font-weight:700; font-size:1.1rem; color:#212529;'>Calibrated Score: {disp_score}</div>", unsafe_allow_html=True)
 
         with res_col2:
             st.write("**Risk Tier Classification**")
             tier = result["tier"]
             if tier == "Low":
-                st.markdown('<div class="tier-badge-low">LOW RISK</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tier-badge-low">LOW RISK ({disp_score})</div>', unsafe_allow_html=True)
                 st.caption(f"Score < {low_cut:.4f}. Normal automated processing.")
             elif tier == "Medium":
-                st.markdown('<div class="tier-badge-medium">MEDIUM RISK</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tier-badge-medium">MEDIUM RISK ({disp_score})</div>', unsafe_allow_html=True)
                 st.caption(f"{low_cut:.4f} <= Score < {high_cut:.4f}. Monitor fulfillment SLA.")
             else:
-                st.markdown('<div class="tier-badge-high">HIGH RISK</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tier-badge-high">HIGH RISK ({disp_score})</div>', unsafe_allow_html=True)
                 st.caption(f"Score >= {high_cut:.4f}. High probability of late delivery.")
 
             st.write("**Operational Flag Status**")
             if result["flagged"]:
-                st.markdown(f'<div class="flagged-yes">FLAGGED (>= {flag_cut:.4f})</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="flagged-yes">FLAGGED (High Tier: Score >= {high_cut:.4f})</div>', unsafe_allow_html=True)
                 st.write("Fulfillment specialist intervention recommended.")
             else:
-                st.markdown(f'<div class="flagged-no">NOT FLAGGED (< {flag_cut:.4f})</div>', unsafe_allow_html=True)
-                st.write("Order cleared for standard dispatch.")
+                st.markdown(f'<div class="flagged-no">NOT FLAGGED (Score < {high_cut:.4f})</div>', unsafe_allow_html=True)
+                st.write("Order cleared for standard automated dispatch.")
+            st.caption(f"Validation Precision >= 80% threshold: {p80_cut:.4f}.")
 
         with res_col3:
             st.write("**Top 3 Explainable Reasons (SHAP)**")
             st.markdown("*Attributions expressed in RAW feature values:*")
             for i, reason in enumerate(result["top_reasons"], 1):
-                icon = "▲" if "(raises risk)" in reason else "▼"
-                color = "#dc3545" if "(raises risk)" in reason else "#28a745"
+                icon = "▲" if "raises risk" in reason else "▼"
+                color = "#dc3545" if "raises risk" in reason else "#28a745"
                 st.markdown(f"<span style='color:{color}; font-weight:700;'>{icon}</span> {reason}", unsafe_allow_html=True)
 
         st.markdown("---")
@@ -589,7 +598,7 @@ def page_real_test_orders(artifacts, test_df, tables):
 
     if demo_df is not None:
         styled_demo = demo_df.copy()
-        st.dataframe(styled_demo, use_container_width=True)
+        st.dataframe(styled_demo, width="stretch")
 
     st.markdown("---")
     st.subheader("2. Interactive Order Inspection")
@@ -641,11 +650,12 @@ def page_real_test_orders(artifacts, test_df, tables):
         st.markdown("---")
         result = predict.score_order(selected_order_dict)
 
+        disp_score = result.get("display_score", f"{result['risk_score']*100:.1f}%")
         c_a, c_b, c_c, c_d = st.columns(4)
         with c_a:
-            st.metric("Order ID", selected_order_dict.get("Order Id", "N/A"))
+            st.metric("Order ID", str(selected_order_dict.get("Order Id", "N/A")))
         with c_b:
-            st.metric("Calibrated Risk Score", f"{result['risk_score']:.4f}")
+            st.metric("Calibrated Risk Score", disp_score)
         with c_c:
             st.metric("Assigned Tier", result["tier"])
         with c_d:
@@ -672,7 +682,9 @@ def page_real_test_orders(artifacts, test_df, tables):
                 "Region": selected_order_dict.get("Order_Region"),
                 "Segment": selected_order_dict.get("Customer_Segment"),
             }
-            st.table(pd.DataFrame(list(features_summary.items()), columns=["Attribute", "Value"]))
+            feat_df = pd.DataFrame(list(features_summary.items()), columns=["Attribute", "Value"])
+            feat_df["Value"] = feat_df["Value"].astype(str)
+            st.table(feat_df)
 
         with col_right:
             st.write("**SHAP Waterfall for this Test Order**")
@@ -704,12 +716,12 @@ def page_model_performance(tables):
 
         comp_df = tables.get("model_comparison")
         if comp_df is not None:
-            st.dataframe(comp_df.style.highlight_max(subset=["roc_auc", "pr_auc", "f1"], color="#d4edda"), use_container_width=True)
+            st.dataframe(comp_df.style.highlight_max(subset=["roc_auc", "pr_auc", "f1"], color="#d4edda"), width="stretch")
 
         st.markdown("""
         **Benchmark Observations:**
         - **LightGBM** achieved the highest test ROC-AUC (0.7678 default, 0.7713 tuned) and PR-AUC (0.8354 default, 0.8134 tuned).
-        - **Precision at Top 10%**: 100.0% for all gradient boosted tree models (Random Forest, XGBoost, LightGBM), driven primarily by the strong determinism of Same Day late orders.
+        - **Precision at Top 10%**: 100.0% for all gradient boosted tree models (Random Forest, XGBoost, LightGBM), driven by First Class orders (which constitute 99.7% of the top decile) and tight dispatch scheduling.
         - **Brier Score**: LightGBM achieved the lowest uncalibrated Brier score (0.1833), confirming superior probability ranking.
         """)
 
@@ -719,22 +731,22 @@ def page_model_performance(tables):
         with c1:
             roc_img = OUTPUTS_DIR / "roc_curves.png"
             if roc_img.exists():
-                st.image(str(roc_img), caption="Figure 1: Receiver Operating Characteristic (ROC) Curves", use_container_width=True)
+                st.image(str(roc_img), caption="Figure 1: Receiver Operating Characteristic (ROC) Curves", width="stretch")
         with c2:
             pr_img = OUTPUTS_DIR / "pr_curves.png"
             if pr_img.exists():
-                st.image(str(pr_img), caption="Figure 2: Precision-Recall (PR) Curves", use_container_width=True)
+                st.image(str(pr_img), caption="Figure 2: Precision-Recall (PR) Curves", width="stretch")
 
         st.subheader("Probability Calibration & Lift")
         c3, c4 = st.columns(2)
         with c3:
             cal_img = OUTPUTS_DIR / "calibration.png"
             if cal_img.exists():
-                st.image(str(cal_img), caption="Figure 3: Reliability Calibration Curves (Before vs After Isotonic Regression)", use_container_width=True)
+                st.image(str(cal_img), caption="Figure 3: Reliability Calibration Curves (Before vs After Isotonic Regression)", width="stretch")
         with c4:
             lift_img = OUTPUTS_DIR / "lift_gain.png"
             if lift_img.exists():
-                st.image(str(lift_img), caption="Figure 4: Cumulative Gain and Decile Lift Charts", use_container_width=True)
+                st.image(str(lift_img), caption="Figure 4: Cumulative Gain and Decile Lift Charts", width="stretch")
 
     with tab3:
         st.subheader("Decile Lift Breakdown (Test Set)")
@@ -742,7 +754,7 @@ def page_model_performance(tables):
 
         decile_df = tables.get("decile")
         if decile_df is not None:
-            st.dataframe(decile_df, use_container_width=True)
+            st.dataframe(decile_df, width="stretch")
 
         st.markdown("""
         **Lift Highlights:**
@@ -752,9 +764,9 @@ def page_model_performance(tables):
 
         st.subheader("Operational Risk Tiers")
         tier_data = [
-            {"Tier": "Low", "Score Range": "score < 0.3826", "Test Volume": "1,390 (14.1%)", "Actual Late Rate": "28.49%", "Late Captured": "7.3%", "Policy": "Standard dispatch; no friction"},
-            {"Tier": "Medium", "Score Range": "0.3826 <= score < 0.7544", "Test Volume": "5,323 (54.0%)", "Actual Late Rate": "42.36%", "Late Captured": "41.5%", "Policy": "Monitor carrier pickup SLA"},
-            {"Tier": "High", "Score Range": "score >= 0.7544", "Test Volume": "3,150 (31.9%)", "Actual Late Rate": "88.22%", "Late Captured": "51.2%", "Policy": "Proactive routing & contact"}
+            {"Tier": "Low", "Score Range": "score < 0.3749", "Test Volume": "1,740 (17.6%)", "Actual Late Rate": "28.91%", "Late Captured": "9.3%", "Policy": "Standard dispatch; automated flow"},
+            {"Tier": "Medium", "Score Range": "0.3749 <= score < 0.6988", "Test Volume": "4,850 (49.2%)", "Actual Late Rate": "42.23%", "Late Captured": "37.7%", "Policy": "Monitor carrier pickup SLA"},
+            {"Tier": "High", "Score Range": "score >= 0.6988", "Test Volume": "3,273 (33.2%)", "Actual Late Rate": "87.96%", "Late Captured": "53.0%", "Policy": "Flagged: Proactive routing & verification"}
         ]
         st.table(pd.DataFrame(tier_data))
 
@@ -764,7 +776,7 @@ def page_model_performance(tables):
 
         final_res_df = tables.get("final_results")
         if final_res_df is not None:
-            st.dataframe(final_res_df, use_container_width=True)
+            st.dataframe(final_res_df, width="stretch")
 
         meta = tables.get("meta", {})
         boot = meta.get("bootstrap_cis", {})
@@ -788,7 +800,7 @@ def page_explainability():
     st.markdown('<div class="main-title">Model Explainability & SHAP Insights</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Global and local feature attributions via TreeExplainer</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Global Feature Importance", "Partial Dependence", "Case Study Waterfalls"])
+    tab1, tab2, tab3 = st.tabs(["Global Feature Importance", "SHAP Dependence", "Case Study Waterfalls"])
 
     with tab1:
         st.subheader("Global Importance & Directional Impact")
@@ -796,36 +808,48 @@ def page_explainability():
         with col1:
             imp_img = OUTPUTS_DIR / "shap_importance.png"
             if imp_img.exists():
-                st.image(str(imp_img), caption="Figure 5: Mean |SHAP| Feature Importance", use_container_width=True)
+                st.image(str(imp_img), caption="Figure 5: Mean |SHAP| Feature Importance", width="stretch")
         with col2:
             sum_img = OUTPUTS_DIR / "shap_summary.png"
             if sum_img.exists():
-                st.image(str(sum_img), caption="Figure 6: SHAP Beeswarm Summary Plot", use_container_width=True)
+                st.image(str(sum_img), caption="Figure 6: SHAP Beeswarm Summary Plot", width="stretch")
 
         st.markdown("""
         **Key Global Insights:**
-        1. **`Shipping_Mode_Standard Class` and `First Class`**: Dominant drivers accounting for ~50% of total attribution mass.
-        2. **`Type_TRANSFER`**: Bank transfer orders exhibit elevated late-delivery probabilities due to settlement verification latency.
-        3. **`order_hour`**: Sharp step function for same-day dispatches.
-        4. **`Days_for_shipment_scheduled`**: Pre-dispatch contracted window.
+        1. **`Shipping_Mode` (Standard Class vs First Class)**: Dominant drivers accounting for over 48% of total attribution mass.
+        2. **`Days_for_shipment_scheduled`**: Pre-dispatch contracted window (0-4 days).
+        3. **`Type` (Payment Method)**: TRANSFER orders exhibit a lower late rate (48.2% vs ~57% for other payment types), reducing risk.
+        4. **`order_hour`**: Sharp step function for same-day dispatches (orders placed at/after 12:00 PM are overwhelmingly late).
         """)
 
     with tab2:
-        st.subheader("Partial Dependence Plots")
-        st.write("Examining non-linear effects and interactions with top predictors:")
-        dp1, dp2, dp3 = st.columns(3)
+        st.subheader("SHAP Dependence Plots (5 Continuous Features)")
+        st.write("Examining non-linear effects and directional SHAP contributions for key continuous predictors:")
+        dp1, dp2 = st.columns(2)
         with dp1:
-            p1 = OUTPUTS_DIR / "shap_dep_Shipping_Mode_First_Class.png"
+            p1 = OUTPUTS_DIR / "shap_dep_order_hour.png"
             if p1.exists():
-                st.image(str(p1), caption="Dependence: First Class", use_container_width=True)
+                st.image(str(p1), caption="Figure: SHAP Dependence – Order Hour", width="stretch")
         with dp2:
-            p2 = OUTPUTS_DIR / "shap_dep_Shipping_Mode_Standard_Class.png"
+            p2 = OUTPUTS_DIR / "shap_dep_scheduled_days.png"
             if p2.exists():
-                st.image(str(p2), caption="Dependence: Standard Class", use_container_width=True)
+                st.image(str(p2), caption="Figure: SHAP Dependence – Scheduled Shipping Days", width="stretch")
+
+        dp3, dp4 = st.columns(2)
         with dp3:
-            p3 = OUTPUTS_DIR / "shap_dep_Type_TRANSFER.png"
+            p3 = OUTPUTS_DIR / "shap_dep_order_value.png"
             if p3.exists():
-                st.image(str(p3), caption="Dependence: Type TRANSFER", use_container_width=True)
+                st.image(str(p3), caption="Figure: SHAP Dependence – Order Value ($)", width="stretch")
+        with dp4:
+            p4 = OUTPUTS_DIR / "shap_dep_value_per_item.png"
+            if p4.exists():
+                st.image(str(p4), caption="Figure: SHAP Dependence – Value per Item ($/item)", width="stretch")
+
+        dp5, _ = st.columns(2)
+        with dp5:
+            p5 = OUTPUTS_DIR / "shap_dep_customer_prev_late_rate.png"
+            if p5.exists():
+                st.image(str(p5), caption="Figure: SHAP Dependence – Customer Historical Late Rate", width="stretch")
 
     with tab3:
         st.subheader("Representative Case Study Waterfalls")
@@ -834,15 +858,15 @@ def page_explainability():
         with w1:
             cw1 = OUTPUTS_DIR / "shap_waterfall_confident_late.png"
             if cw1.exists():
-                st.image(str(cw1), caption="Case 1: Confident Late Delivery", use_container_width=True)
+                st.image(str(cw1), caption="Case 1: Confident Late Delivery", width="stretch")
         with w2:
             cw2 = OUTPUTS_DIR / "shap_waterfall_confident_ontime.png"
             if cw2.exists():
-                st.image(str(cw2), caption="Case 2: Confident On-Time Delivery", use_container_width=True)
+                st.image(str(cw2), caption="Case 2: Confident On-Time Delivery", width="stretch")
         with w3:
             cw3 = OUTPUTS_DIR / "shap_waterfall_false_negative.png"
             if cw3.exists():
-                st.image(str(cw3), caption="Case 3: False Negative Analysis", use_container_width=True)
+                st.image(str(cw3), caption="Case 3: False Negative Analysis", width="stretch")
 
 
 # ===========================================================================
@@ -878,11 +902,11 @@ def page_robustness(tables):
         with col1:
             abl_df = tables.get("ablation")
             if abl_df is not None:
-                st.dataframe(abl_df, use_container_width=True)
+                st.dataframe(abl_df, width="stretch")
         with col2:
             abl_chart = OUTPUTS_DIR / "ablation_chart.png"
             if abl_chart.exists():
-                st.image(str(abl_chart), caption="Figure 7: Ablation ROC-AUC vs PR-AUC", use_container_width=True)
+                st.image(str(abl_chart), caption="Figure 7: Ablation ROC-AUC vs PR-AUC", width="stretch")
 
         st.caption("Ablation conclusion: Dropping shipping mode & scheduled days collapses ROC-AUC from 0.7713 to 0.5594. Shipping parameters are the primary structural determinants.")
 
@@ -899,7 +923,7 @@ def page_robustness(tables):
         st.dataframe(pd.DataFrame(mode_data).style.apply(
             lambda row: ['background-color: #f8d7da' if row["Shipping Mode"] == "Standard Class" else '' for _ in row],
             axis=1
-        ), use_container_width=True)
+        ), width="stretch")
 
     with tab3:
         st.subheader("Rolling-Origin Backtesting (5 Expanding Folds)")
@@ -909,7 +933,7 @@ def page_robustness(tables):
         with col_b1:
             back_df = tables.get("backtest")
             if back_df is not None:
-                st.dataframe(back_df, use_container_width=True)
+                st.dataframe(back_df, width="stretch")
             st.markdown("""
             - **Mean Fold ROC-AUC**: `0.7695 ± 0.0057`
             - **Mean Fold PR-AUC**: `0.8135 ± 0.0040`
@@ -918,7 +942,7 @@ def page_robustness(tables):
         with col_b2:
             bt_plot = OUTPUTS_DIR / "backtest_plot.png"
             if bt_plot.exists():
-                st.image(str(bt_plot), caption="Figure 8: Temporal Stability Across Folds", use_container_width=True)
+                st.image(str(bt_plot), caption="Figure 8: Temporal Stability Across Folds", width="stretch")
 
     with tab4:
         st.subheader("Population Stability Index (PSI) Drift Check")
@@ -926,7 +950,7 @@ def page_robustness(tables):
 
         psi_df = tables.get("psi")
         if psi_df is not None:
-            st.dataframe(psi_df, use_container_width=True)
+            st.dataframe(psi_df, width="stretch")
 
         st.caption("All top features exhibit PSI < 0.0001, confirming zero significant distribution drift across the temporal boundary.")
 

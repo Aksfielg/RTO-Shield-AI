@@ -211,11 +211,13 @@ def run_trivial_policies(data: dict) -> list[dict]:
         thr_data["thresholds"].get("max_f1", 0.3538))
     )
     thr_high = float(thr_data["tier_cutoffs"]["high_min"])
+    thr_p80  = float(thr_data["thresholds"].get("precision_80", 0.3994))
 
     policies = {
         "Flag-all (all positive)": np.ones_like(y_te, dtype=int),
         "Flag-none (all negative)": np.zeros_like(y_te, dtype=int),
         f"Flag by High tier (score >= {thr_high:.4f})": (cal_preds >= thr_high).astype(int),
+        f"Flag by Precision >= 80% (score >= {thr_p80:.4f})": (cal_preds >= thr_p80).astype(int),
         f"Flag by final threshold (score >= {thr_final:.4f})": (cal_preds >= thr_final).astype(int),
     }
 

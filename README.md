@@ -72,13 +72,20 @@ Runs all scripts in order and logs output to `outputs/run_log.txt`.
 ### Individual scripts
 
 ```bash
-venv\Scripts\python.exe src/01_prepare.py         # Wrangle & feature-engineer
-venv\Scripts\python.exe src/02_train.py           # Train 5 models, compare metrics
+venv\Scripts\python.exe src/01_prepare.py              # Wrangle & feature-engineer
+venv\Scripts\python.exe src/02_train.py                # Train 5 models, compare metrics
 venv\Scripts\python.exe src/03_calibrate_threshold.py  # Calibrate + threshold search
-venv\Scripts\python.exe src/04_explain.py         # SHAP explanations
-venv\Scripts\python.exe src/05_tune_multiseed.py  # Hyperparameter tuning + stability
-venv\Scripts\python.exe src/06_robustness.py      # Ablations, backtest, PSI
-venv\Scripts\python.exe src/07_predict_demo.py    # Predict demo (5 orders)
+venv\Scripts\python.exe src/04_explain.py              # SHAP explanations
+venv\Scripts\python.exe src/05_tune_multiseed.py       # Hyperparameter tuning + stability
+venv\Scripts\python.exe src/06_robustness.py           # Ablations, backtest, PSI
+venv\Scripts\python.exe src/07_predict_demo.py         # Predict demo (5 orders)
+venv\Scripts\python.exe src/08_sanity_checks.py        # Sanity checks suite & provenance
+```
+
+### Streamlit Dashboard
+
+```bash
+streamlit run app.py
 ```
 
 ### CLI prediction

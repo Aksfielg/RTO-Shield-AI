@@ -48,7 +48,7 @@ from config import (
     CATEGORICAL_FEATURES, NUMERIC_FEATURES,
 )
 from features import _select_feature_cols
-from reasons  import get_reason_codes
+from reasons import get_reason_codes, group_shap_values
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -168,62 +168,72 @@ def save_beeswarm(sv: shap.Explanation, feat_names: list[str], out_path: Path) -
 
 
 # ===========================================================================
-# 2. Dependence plots for top-3 features
+# 2. SHAP dependence plots for 5 key continuous features
 # ===========================================================================
 
 def save_dependence_plots(
     sv:         shap.Explanation,
     X_sample:   np.ndarray,
     feat_names: list[str],
-    top_raw:    list[str],
+    sample_df:  pd.DataFrame,
 ) -> None:
     """
-    Save one dependence scatter plot per top-3 feature.
-    Uses raw SHAP values vs transformed feature value, coloured by the
-    feature with the highest interaction (auto-detected via correlation).
+    Save SHAP dependence scatter plots for 5 continuous features:
+      1. order_hour
+      2. Days_for_shipment_scheduled (scheduled_days)
+      3. order_value
+      4. value_per_item
+      5. customer_prev_late_rate
+    Plots raw business feature values on the x-axis and SHAP log-odds on y-axis.
     """
-    top3 = top_raw[:3]
+    target_specs = [
+        ("order_hour", "num__order_hour", "Order Hour (0-23, Local Time)", "shap_dep_order_hour.png"),
+        ("Days_for_shipment_scheduled", "num__Days_for_shipment_scheduled", "Scheduled Shipping Days", "shap_dep_scheduled_days.png"),
+        ("order_value", "num__order_value", "Order Value ($ USD)", "shap_dep_order_value.png"),
+        ("value_per_item", "num__value_per_item", "Value per Item ($ USD / item)", "shap_dep_value_per_item.png"),
+        ("customer_prev_late_rate", "num__customer_prev_late_rate", "Customer Historical Late Rate", "shap_dep_customer_prev_late_rate.png"),
+    ]
 
-    for feat_raw in top3:
-        fi = feat_names.index(feat_raw)
+    for raw_col, feat_col, label, fname in target_specs:
+        if feat_col not in feat_names:
+            continue
+        fi = feat_names.index(feat_col)
         shap_vals_col = sv.values[:, fi]
-        feat_vals_col = X_sample[:, fi]
 
-        # Find strongest interacting feature (max |correlation| with SHAP residuals)
-        resid = shap_vals_col - np.polyval(np.polyfit(feat_vals_col, shap_vals_col, 1), feat_vals_col)
-        corrs = []
-        for j in range(X_sample.shape[1]):
-            if j == fi:
-                corrs.append(0.0)
-                continue
-            try:
-                c = abs(np.corrcoef(X_sample[:, j], resid)[0, 1])
-            except Exception:
-                c = 0.0
-            corrs.append(0.0 if np.isnan(c) else c)
-        interact_i = int(np.argmax(corrs))
-        interact_vals = X_sample[:, interact_i]
+        # Use unscaled/raw values from sample_df if available, else X_sample
+        if raw_col in sample_df.columns:
+            feat_vals_col = sample_df[raw_col].values
+        else:
+            feat_vals_col = X_sample[:, fi]
 
-        clean_name  = _clean_name(feat_raw)
-        interact_nm = _clean_name(feat_names[interact_i])
-        fname_safe  = clean_name.replace(" ", "_").replace("/", "_")[:40]
-        out_path    = OUTPUTS_DIR / f"shap_dep_{fname_safe}.png"
+        out_path = OUTPUTS_DIR / fname
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        sc = ax.scatter(feat_vals_col, shap_vals_col,
-                        c=interact_vals, cmap="coolwarm",
-                        alpha=0.65, s=18, linewidths=0)
-        cb = fig.colorbar(sc, ax=ax, pad=0.01)
-        cb.set_label(interact_nm, fontsize=8)
-        ax.axhline(0, color="grey", ls="--", lw=0.9, alpha=0.6)
-        ax.set_xlabel(clean_name, fontsize=11)
-        ax.set_ylabel("SHAP value (log-odds)", fontsize=11)
-        ax.set_title(f"Dependence plot – {clean_name}", fontsize=12)
-        ax.grid(alpha=0.25)
+        ax.scatter(feat_vals_col, shap_vals_col,
+                   color="#1E88E5", alpha=0.65, s=24, edgecolors="none")
+        ax.axhline(0, color="grey", ls="--", lw=0.9, alpha=0.7)
+        ax.set_xlabel(label, fontsize=11)
+        ax.set_ylabel("SHAP value (log-odds impact)", fontsize=11)
+        ax.set_title(f"SHAP dependence – {label}", fontsize=12)
+        ax.grid(alpha=0.3)
         fig.tight_layout()
         fig.savefig(out_path, dpi=150)
         plt.close(fig)
-        print(f"  Dependence plot saved → {out_path}")
+        print(f"  SHAP dependence plot saved → {out_path}")
+
+        # If scheduled_days, also save as shap_dep_Days_for_shipment_scheduled.png for compatibility
+        if fname == "shap_dep_scheduled_days.png":
+            alt_path = OUTPUTS_DIR / "shap_dep_Days_for_shipment_scheduled.png"
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.scatter(feat_vals_col, shap_vals_col, color="#1E88E5", alpha=0.65, s=24, edgecolors="none")
+            ax.axhline(0, color="grey", ls="--", lw=0.9, alpha=0.7)
+            ax.set_xlabel(label, fontsize=11)
+            ax.set_ylabel("SHAP value (log-odds impact)", fontsize=11)
+            ax.set_title(f"SHAP dependence – {label}", fontsize=12)
+            ax.grid(alpha=0.3)
+            fig.tight_layout()
+            fig.savefig(alt_path, dpi=150)
+            plt.close(fig)
 
 
 # ===========================================================================
@@ -270,15 +280,22 @@ def save_waterfall(
     test_df:     pd.DataFrame,
     out_path:    Path,
 ) -> None:
-    """Compute SHAP for a single row and save waterfall plot."""
+    """Compute SHAP for a single row and save waterfall plot using grouped parent features and raw values."""
     X_row = X_te[case_idx : case_idx + 1]
     sv_row = explainer(X_row)
+    sv_flat = sv_row.values[0]
+    row_dict = test_df.iloc[case_idx].to_dict()
 
-    # Rename for display
-    sv_row.feature_names = [_clean_name(n) for n in feat_names]
+    labels, values, val_strs = group_shap_values(sv_flat, feat_names, row_dict)
+    clean_exp = shap.Explanation(
+        values=values,
+        base_values=sv_row.base_values[0],
+        data=val_strs,
+        feature_names=labels,
+    )
 
     fig, ax = plt.subplots(figsize=(10, 7))
-    shap.plots.waterfall(sv_row[0], max_display=12, show=False)
+    shap.plots.waterfall(clean_exp, max_display=12, show=False)
     title_str = (
         f"Waterfall – {case_label}\n"
         f"Score={proba[case_idx]:.4f}  |  Actual={'Late' if y_te[case_idx]==1 else 'On-time'}"
@@ -323,8 +340,8 @@ def print_waterfall_summary(
             print(f"       {rank}. {name:<42}  {sv:>+8.4f}  ({arrow} risk)")
 
         # Reason codes via reasons.py
-        feat_vals = X_te[case_idx]
-        codes = get_reason_codes(sv_flat, feat_names, feat_vals, k=3)
+        row_dict = test_df.iloc[case_idx].to_dict()
+        codes = get_reason_codes(sv_flat, feat_names, row_dict, k=3)
         print(f"     Reason codes:")
         for c in codes:
             print(f"       • {c}")
@@ -414,9 +431,11 @@ def main() -> None:
 
     # ── Load artifacts ────────────────────────────────────────────────────────
     print("\n[1/6] Loading model, preprocessor, and test data …")
-    model  = joblib.load(MODELS_DIR / "lightgbm.joblib")
+    model_path = MODELS_DIR / "final_model.joblib" if (MODELS_DIR / "final_model.joblib").exists() else MODELS_DIR / "lightgbm.joblib"
+    model  = joblib.load(model_path)
     prep   = joblib.load(MODELS_DIR / "preprocessor.joblib")
-    cal    = joblib.load(MODELS_DIR / "calibrator.joblib")
+    cal_path = MODELS_DIR / "final_calibrator.joblib" if (MODELS_DIR / "final_calibrator.joblib").exists() else MODELS_DIR / "calibrator.joblib"
+    cal    = joblib.load(cal_path)
     test_df, X_te, y_te = _load_test_split()
     feat_names = list(prep.get_feature_names_out())
     proba  = model.predict_proba(X_te)[:, 1]
@@ -426,6 +445,7 @@ def main() -> None:
     print(f"\n[2/6] Computing SHAP values on {SAMPLE_N}-row random sample …")
     rng = np.random.default_rng(SEED)
     sample_idx, X_sample, sv, explainer = compute_shap(model, X_te, feat_names, rng)
+    sample_df = test_df.iloc[sample_idx].copy().reset_index(drop=True)
     print(f"  SHAP Explanation object: {sv.values.shape[0]} rows × {sv.values.shape[1]} features")
     print(f"  Base value (expected model output): {float(np.mean(sv.base_values)):.4f}")
 
@@ -440,9 +460,9 @@ def main() -> None:
     save_importance_bar(sv, feat_names, OUTPUTS_DIR / "shap_importance.png")
     save_beeswarm(sv, feat_names, OUTPUTS_DIR / "shap_summary.png")
 
-    # ── Dependence plots (top 3) ──────────────────────────────────────────────
-    print(f"\n[4/6] Saving dependence plots for top-3 features …")
-    save_dependence_plots(sv, X_sample, feat_names, top_raw)
+    # ── Dependence plots (5 continuous features) ──────────────────────────────
+    print(f"\n[4/6] Saving SHAP dependence plots for 5 continuous features …")
+    save_dependence_plots(sv, X_sample, feat_names, sample_df)
 
     # ── Waterfall plots for 3 cases ───────────────────────────────────────────
     print(f"\n[5/6] Waterfall plots for 3 representative test orders …")

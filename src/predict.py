@@ -73,6 +73,18 @@ _THRESHOLDS_PATH = MODELS_DIR / "thresholds.json"
 _MODEL_PATH      = MODELS_DIR / "final_model.joblib"
 _PREP_PATH       = MODELS_DIR / "preprocessor.joblib"
 _CAL_PATH        = MODELS_DIR / "final_calibrator.joblib"
+if not _CAL_PATH.exists():
+    _CAL_PATH = MODELS_DIR / "calibrator.joblib"
+
+
+def format_score_clipped(score: float) -> str:
+    """Format risk score as a percentage clipped at <1% and >99%."""
+    if score < 0.01:
+        return "<1%"
+    elif score > 0.99:
+        return ">99%"
+    else:
+        return f"{score * 100:.1f}%"
 
 
 # ===========================================================================
@@ -88,13 +100,11 @@ def _load_artifacts() -> None:
     _CACHE["prep"]  = joblib.load(_PREP_PATH)
     _CACHE["cal"]   = joblib.load(_CAL_PATH)
 
-    thr_data = json.loads(_THRESHOLDS_PATH.read_text())
-    _CACHE["flag_threshold"] = float(
-        thr_data["thresholds"].get("final_tuned_max_f1",
-        thr_data["thresholds"].get("max_f1", 0.35))
-    )
+    thr_data = json.loads(_THRESHOLDS_PATH.read_text(encoding="utf-8"))
     _CACHE["low_cut"]  = float(thr_data["tier_cutoffs"]["low_max"])
     _CACHE["high_cut"] = float(thr_data["tier_cutoffs"]["high_min"])
+    # Flagged defined strictly as High tier (score >= high_min)
+    _CACHE["flag_threshold"] = _CACHE["high_cut"]
     _CACHE["feat_names"] = list(_CACHE["prep"].get_feature_names_out())
 
     # SHAP explainer (expensive — created once)
@@ -191,11 +201,12 @@ def score_order(order_dict: dict) -> dict:
     reasons = _shap_reasons(X, raw_dict=order_dict)
 
     return {
-        "order_id":    order_id,
-        "risk_score":  round(score, 6),
-        "tier":        tier_,
-        "flagged":     flagged,
-        "top_reasons": reasons,
+        "order_id":      order_id,
+        "risk_score":    round(score, 6),
+        "display_score": format_score_clipped(score),
+        "tier":          tier_,
+        "flagged":       flagged,
+        "top_reasons":   reasons,
     }
 
 
@@ -211,7 +222,7 @@ def score_batch(df: pd.DataFrame) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame with columns:
-        order_id, risk_score, tier, flagged, reason_1, reason_2, reason_3
+        order_id, risk_score, display_score, tier, flagged, reason_1, reason_2, reason_3
     """
     _load_artifacts()
 
@@ -241,14 +252,16 @@ def score_batch(df: pd.DataFrame) -> pd.DataFrame:
         reasons = get_reason_codes(
             sv_all[i], _CACHE["feat_names"], X[i], k=3, raw_dict=row_dict
         )
+        s_val = float(scores[i])
         rows.append({
-            "order_id":  order_ids[i],
-            "risk_score": round(float(scores[i]), 6),
-            "tier":       tiers[i],
-            "flagged":    flagged[i],
-            "reason_1":   reasons[0] if len(reasons) > 0 else "",
-            "reason_2":   reasons[1] if len(reasons) > 1 else "",
-            "reason_3":   reasons[2] if len(reasons) > 2 else "",
+            "order_id":      order_ids[i],
+            "risk_score":    round(s_val, 6),
+            "display_score": format_score_clipped(s_val),
+            "tier":          tiers[i],
+            "flagged":       flagged[i],
+            "reason_1":      reasons[0] if len(reasons) > 0 else "",
+            "reason_2":      reasons[1] if len(reasons) > 1 else "",
+            "reason_3":      reasons[2] if len(reasons) > 2 else "",
         })
 
     return pd.DataFrame(rows)

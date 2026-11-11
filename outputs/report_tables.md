@@ -38,25 +38,24 @@ See the **Figure File Index** at the bottom for which PNGs accompany each sectio
 
 ## Table 4 — Threshold Analysis (chosen on Validation, applied to Test)
 
-| Threshold strategy | Threshold | Test Precision | Test Recall | Test F1 |
-|---|---|---|---|---|
-| Maximize F1 | 0.3420 | 0.5771 | 0.9613 | 0.7212 |
-| Recall ≥ 0.80 | 0.0100 | 0.5650 | 1.0000 | 0.7220 |
-| Cost 1:1 (FN=FP) | 0.4708 | 0.8542 | 0.5880 | 0.6966 |
-| Cost 2:1 (FN=2×FP) | 0.3053 | 0.5685 | 0.9902 | 0.7223 |
-| Cost 3:1 | 0.0100 | 0.5650 | 1.0000 | 0.7220 |
-| Cost 5:1 | 0.0100 | 0.5650 | 1.0000 | 0.7220 |
-| **Final (tuned max F1)** | **0.3538** | **0.5855** | **0.9549** | **0.7259** |
+| Threshold strategy | Threshold | Test Precision | Test Recall | Test F1 | Test Flagged Share |
+|---|---|---|---|---|---|
+| **Flag by High tier (Operational Flag)** | **0.6988** | **0.8836** | **0.5215** | **0.6559** | **32.50% (3,205 / 9,863)** |
+| **Precision ≥ 0.80 strategy** | **0.3994** | **0.8506** | **0.5902** | **0.6969** | **38.20% (3,768 / 9,863)** |
+| Maximize F1 (validation) | 0.3538 | 0.5855 | 0.9549 | 0.7259 | 89.78% (8,855 / 9,863) |
+| Cost 2:1 (FN=2×FP) | 0.3320 | 0.5828 | 0.9584 | 0.7248 | 90.57% (8,933 / 9,863) |
+| Flag-all (trivial baseline) | 0.0000 | 0.5505 | 1.0000 | 0.7101 | 100.00% (9,863 / 9,863) |
+| Flag-none (trivial baseline) | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.00% (0 / 9,863) |
 
 ---
 
-## Table 5 — Risk Tiers (Test Set, cutoffs from Validation p33/p67)
+## Table 5 — Risk Tiers (Test Set, cutoffs from Validation p33/p67 of Final Tuned Model)
 
 | Tier | Score range | Test Orders | Share % | Actual Late Rate | Late Captured % | Cutoffs Source |
 |---|---|---|---|---|---|---|
-| Low | score < 0.3826 | 1,390 | 14.1% | 0.2849 | 7.3% | p33 of calibrated val scores |
-| Medium | 0.3826 ≤ score < 0.7544 | 5,323 | 54.0% | 0.4236 | 41.5% | p33 to p67 of calibrated val scores |
-| High | score ≥ 0.7544 | 3,150 | 31.9% | 0.8822 | 51.2% | p67 of calibrated val scores |
+| Low | score < 0.3749 | 1,740 | 17.6% | 0.2891 | 9.3% | p33 of final tuned calibrated val scores |
+| Medium | 0.3749 ≤ score < 0.6988 | 4,850 | 49.2% | 0.4223 | 37.7% | p33 to p67 of final tuned calibrated val scores |
+| High | score ≥ 0.6988 | 3,273 | 33.2% | 0.8796 | 53.0% | p67 of final tuned calibrated val scores (Operational Flag) |
 
 ---
 
@@ -229,9 +228,11 @@ See the **Figure File Index** at the bottom for which PNGs accompany each sectio
 | `outputs/lift_gain.png` | §Threshold & Tiers | Decile lift bar chart + cumulative gain curve |
 | `outputs/shap_importance.png` | §Explainability | Top-15 mean \|SHAP\| bar chart |
 | `outputs/shap_summary.png` | §Explainability | SHAP beeswarm summary plot |
-| `outputs/shap_dep_Shipping_Mode_First_Class.png` | §Explainability | SHAP dependence plot: Shipping Mode First Class |
-| `outputs/shap_dep_Shipping_Mode_Standard_Class.png` | §Explainability | SHAP dependence plot: Shipping Mode Standard Class |
-| `outputs/shap_dep_Type_TRANSFER.png` | §Explainability | SHAP dependence plot: Type TRANSFER |
+| `outputs/shap_dep_order_hour.png` | §Explainability | SHAP dependence plot: Order Hour |
+| `outputs/shap_dep_scheduled_days.png` | §Explainability | SHAP dependence plot: Scheduled Shipping Days |
+| `outputs/shap_dep_order_value.png` | §Explainability | SHAP dependence plot: Order Value |
+| `outputs/shap_dep_value_per_item.png` | §Explainability | SHAP dependence plot: Value per Item |
+| `outputs/shap_dep_customer_prev_late_rate.png` | §Explainability | SHAP dependence plot: Customer Historical Late Rate |
 | `outputs/shap_waterfall_confident_late.png` | §Explainability | Waterfall: confident late prediction |
 | `outputs/shap_waterfall_confident_ontime.png` | §Explainability | Waterfall: confident on-time prediction |
 | `outputs/shap_waterfall_false_negative.png` | §Explainability | Waterfall: false negative case study |

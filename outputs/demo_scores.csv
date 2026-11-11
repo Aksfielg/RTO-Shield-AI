@@ -1,6 +1,6 @@
-rank,order_id,risk_score,tier,flagged,actual,shipping_mode,payment_type,region,sched_days,reason_1,reason_2,reason_3
-1,77188,1.0,High,True,Late,First Class,CASH,Oceania,1,Shipping Mode is First Class (raises risk),Shipping Mode is not Standard Class (raises risk),Scheduled shipping days is 1 (raises risk)
-2,67039,1.0,High,True,Late,First Class,DEBIT,Western Europe,1,Shipping Mode is First Class (raises risk),Shipping Mode is not Standard Class (raises risk),Scheduled shipping days is 1 (raises risk)
-3,72160,0.386667,Medium,True,Late,Standard Class,PAYMENT,South Asia,4,Shipping Mode is Standard Class (lowers risk),Scheduled shipping days is 4 (lowers risk),Shipping Mode is not First Class (lowers risk)
-4,73182,0.0,Low,False,On-time,Same Day,DEBIT,Eastern Asia,0,Shipping Mode is Same Day (lowers risk),Hour of day is 6 (lowers risk),Shipping Mode is not First Class (lowers risk)
-5,76954,0.0,Low,False,On-time,Same Day,PAYMENT,South Asia,0,Shipping Mode is Same Day (lowers risk),Hour of day is 8 (lowers risk),Shipping Mode is not First Class (lowers risk)
+rank,order_id,risk_score,display_score,tier,flagged,actual,shipping_mode,payment_type,region,sched_days,reason_1,reason_2,reason_3
+1,77188,1.0,>99%,High,True,Late,First Class,CASH,Oceania,1,Shipping mode: First Class raises risk,Scheduled shipping days: 1 raises risk,Payment type: CASH raises risk
+2,67039,1.0,>99%,High,True,Late,First Class,DEBIT,Western Europe,1,Shipping mode: First Class raises risk,Scheduled shipping days: 1 raises risk,Payment type: DEBIT raises risk
+3,72160,0.386667,38.7%,Medium,False,Late,Standard Class,PAYMENT,South Asia,4,Shipping mode: Standard Class lowers risk,Scheduled shipping days: 4 lowers risk,Payment type: PAYMENT raises risk
+4,73182,0.0,<1%,Low,False,On-time,Same Day,DEBIT,Eastern Asia,0,Shipping mode: Same Day lowers risk,Hour of day: 06:00 lowers risk,Scheduled shipping days: 0 lowers risk
+5,76954,0.0,<1%,Low,False,On-time,Same Day,PAYMENT,South Asia,0,Shipping mode: Same Day lowers risk,Hour of day: 08:00 lowers risk,Scheduled shipping days: 0 lowers risk

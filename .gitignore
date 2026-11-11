@@ -5,6 +5,7 @@ __pycache__/
 *.pyo
 .mpl_cache/
 .pytest_cache/
+scratch/
 
 # ── Large Files (>100MB rejected by GitHub) ────────────────────
 # Raw dataset is 96MB; external link provided in README & MODEL_CARD

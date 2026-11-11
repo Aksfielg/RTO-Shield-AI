@@ -1,6 +1,6 @@
 # RTO Shield AI - Model 1: Sanity Checks & Quality Audits
 
-> Generated: 2026-11-11 19:57:39  
+> Generated: 2026-11-11 20:48:26  
 > Pipeline: Final Tuned LightGBM + Isotonic Calibration  
 > Dataset: Constante et al. 2019 (Mendeley Data V5, DOI 10.17632/8gx2fvg2k6.5)  
 
@@ -28,7 +28,8 @@ Evaluating whether the model offers actionable operational value over simple heu
 |---|---|---|---|---|---|
 | **Flag-all (all positive)** | 0.5505 | 1.0000 | 0.7101 | 9,863 | 100.00% |
 | **Flag-none (all negative)** | 0.0000 | 0.0000 | 0.0000 | 0 | 0.00% |
-| **Flag by High tier (score >= 0.7544)** | 0.8836 | 0.5215 | 0.6559 | 3,205 | 32.50% |
+| **Flag by High tier (score >= 0.6988)** | 0.8836 | 0.5215 | 0.6559 | 3,205 | 32.50% |
+| **Flag by Precision >= 80% (score >= 0.3994)** | 0.8506 | 0.5902 | 0.6969 | 3,768 | 38.20% |
 | **Flag by final threshold (score >= 0.3538)** | 0.5855 | 0.9549 | 0.7259 | 8,855 | 89.78% |
 
 **Policy Takeaways:**

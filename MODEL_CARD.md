@@ -146,25 +146,30 @@ Reliability curves saved to `outputs/calibration.png`. Both default and tuned mo
 
 ## 7. Risk Tiers (from thresholds.json)
 
-Tier cutoffs derived from the **33rd and 67th percentiles of calibrated validation scores**.
+Tier cutoffs derived from the **33rd and 67th percentiles of calibrated validation scores** of the final tuned LightGBM model:
 
-| Tier | Score range | Recommended action |
-|---|---|---|
-| Low | < 0.3826 | No intervention |
-| Medium | 0.3826 – 0.7544 | Monitor; consider carrier upgrade |
-| High | ≥ 0.7544 | Immediate proactive contact / routing change |
+| Tier | Score range | Recommended action | Test Late Rate | Test Volume Share |
+|---|---|---|---|---|
+| Low | < 0.3749 | Standard dispatch; automated processing | 28.91% | 17.6% (1,740) |
+| Medium | 0.3749 – 0.6988 | Monitor carrier pickup SLA | 42.23% | 49.2% (4,850) |
+| High | ≥ 0.6988 | **Operational Flag**: Proactive intervention / route review | 87.96% | 33.2% (3,273) |
+
+> **Threshold Strategy Options:**
+> - **Operational Flag (High Tier)**: `score >= 0.6988` (Precision: 88.36%, Recall: 52.15%, F1: 0.6559, Flags: 32.50%).
+> - **High Precision Strategy (Precision ≥ 80%)**: `score >= 0.3994` (Precision: 85.06%, Recall: 59.02%, F1: 0.6969, Flags: 38.20%).
+> - **Max-F1 Strategy**: `score >= 0.3538` (Precision: 58.55%, Recall: 95.49%, F1: 0.7259, Flags: 89.78%).
 
 ---
 
 ## 8. Top Features (SHAP, 500-row test sample)
 
-| Rank | Feature | Mean \|SHAP\| | % of total |
-|---|---|---|---|
-| 1 | Shipping_Mode_Standard_Class | — | ~26 % |
-| 2 | Shipping_Mode_First_Class | — | ~24 % |
-| 3 | Type_TRANSFER | — | ~12 % |
-| 4 | order_hour | — | ~9 % |
-| 5 | Days_for_shipment_scheduled | — | ~7 % |
+| Rank | Feature | Mean \|SHAP\| | % of total | Directional Note |
+|---|---|---|---|---|
+| 1 | Shipping_Mode_Standard Class | 0.3920 | ~33.1 % | Lowers risk vs First Class |
+| 2 | Days_for_shipment_scheduled | 0.1990 | ~16.8 % | Longer scheduled window lowers risk |
+| 3 | Shipping_Mode_First Class | 0.1825 | ~15.4 % | Substantially raises risk |
+| 4 | Type_TRANSFER | 0.1119 | ~9.4 % | Lowers late rate (48.2% vs ~57% for other payment types) |
+| 5 | order_hour | 0.0892 | ~7.5 % | Step function for Same Day dispatches |
 
 **Key finding:** `order_hour` is near-deterministic for Same Day shipping (see proxy-target caveat below).
 
@@ -176,7 +181,7 @@ Tier cutoffs derived from the **33rd and 67th percentiles of calibrated validati
 > **Proxy target** — `Late_delivery_risk` is a pre-computed flag in the dataset, not raw measured delivery outcomes. The model learns to replicate this rule-based flag, not actual late-delivery propensity.
 
 > [!CAUTION]
-> **Near rule-based label** — `order_hour` alone explains ~94 % of Same Day late-delivery outcomes. Precision@top10% = 100 % for top decile, which is an artefact of the label construction, not genuine model insight.
+> **Near rule-based label** — `order_hour` alone explains ~94 % of Same Day late-delivery outcomes. Precision@top10% = 100 % for the top decile, which consists of 99.7% First Class orders with tight 1-day SLAs, an artefact of synthetic label construction rather than genuine courier insight.
 
 | Limitation | Detail |
 |---|---|

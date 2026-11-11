@@ -85,7 +85,7 @@ def _print_order_card(
     print(f"\n  {'─'*72}")
     print(f"  Order #{rank}  │  Order Id: {order_id}  │  Tier: {result['tier']}  │  {flag}")
     print(f"  {'─'*72}")
-    print(f"  Risk Score : {result['risk_score']:.4f}")
+    print(f"  Risk Score : {result.get('display_score', '')} ({result['risk_score']:.4f})")
     print(f"  Actual     : {act_s}  ({correct})")
     print(f"  Shipping   : {mode}  │  Payment: {ptype}  │  Region: {region}  │  Sched days: {sched}")
     print(f"  Top Reasons:")
@@ -133,34 +133,36 @@ def main() -> None:
 
         results.append(result)
         order_dicts.append(order_dict)
+        disp_s = result.get("display_score", f"{result['risk_score']:.4f}")
         csv_rows.append({
-            "rank":         rank,
-            "order_id":     order_id,
-            "risk_score":   result["risk_score"],
-            "tier":         result["tier"],
-            "flagged":      result["flagged"],
-            "actual":       "Late" if actual == 1 else "On-time",
-            "shipping_mode":mode,
-            "payment_type": ptype,
-            "region":       region,
-            "sched_days":   sched,
-            "reason_1":     result["top_reasons"][0] if len(result["top_reasons"]) > 0 else "",
-            "reason_2":     result["top_reasons"][1] if len(result["top_reasons"]) > 1 else "",
-            "reason_3":     result["top_reasons"][2] if len(result["top_reasons"]) > 2 else "",
+            "rank":          rank,
+            "order_id":      order_id,
+            "risk_score":    result["risk_score"],
+            "display_score": disp_s,
+            "tier":          result["tier"],
+            "flagged":       result["flagged"],
+            "actual":        "Late" if actual == 1 else "On-time",
+            "shipping_mode": mode,
+            "payment_type":  ptype,
+            "region":        region,
+            "sched_days":    sched,
+            "reason_1":      result["top_reasons"][0] if len(result["top_reasons"]) > 0 else "",
+            "reason_2":      result["top_reasons"][1] if len(result["top_reasons"]) > 1 else "",
+            "reason_3":      result["top_reasons"][2] if len(result["top_reasons"]) > 2 else "",
         })
 
     # ── Summary table ─────────────────────────────────────────────────────────
     print(f"\n  {'='*74}")
     print(f"  Summary Table")
     print(f"  {'='*74}")
-    print(f"  {'#':>2}  {'OrderId':>8}  {'Score':>7}  {'Tier':>7}  "
+    print(f"  {'#':>2}  {'OrderId':>8}  {'Score':>8}  {'Display':>8}  {'Tier':>7}  "
           f"{'Flag':>7}  {'Actual':>8}  {'Shipping Mode':<18}")
-    print(f"  {_sep('-', 70)}")
+    print(f"  {_sep('-', 74)}")
     for r, row in enumerate(csv_rows, 1):
         flag_s = "YES" if row["flagged"] else "no"
         print(
-            f"  {r:>2}  {row['order_id']:>8}  {row['risk_score']:>7.4f}  "
-            f"{row['tier']:>7}  {flag_s:>7}  {row['actual']:>8}  "
+            f"  {r:>2}  {row['order_id']:>8}  {row['risk_score']:>8.4f}  "
+            f"{row['display_score']:>8}  {row['tier']:>7}  {flag_s:>7}  {row['actual']:>8}  "
             f"{row['shipping_mode']:<18}"
         )
 

@@ -1,19 +1,19 @@
 {
-  "best_model": "lightgbm",
-  "best_val_roc_auc": 0.7638,
+  "best_model": "lightgbm_tuned",
+  "best_val_roc_auc": 0.7747,
+  "flag_definition": "High tier (score >= high_min)",
   "thresholds": {
-    "max_f1": 0.342,
+    "flag_high_tier": 0.6988,
+    "precision_80": 0.3994,
+    "max_f1": 0.3538,
+    "cost_2_1": 0.332,
     "recall_80": 0.01,
-    "cost_1_1": 0.4708,
-    "cost_2_1": 0.3053,
-    "cost_3_1": 0.01,
-    "cost_5_1": 0.01,
     "final_tuned_max_f1": 0.3538
   },
   "tier_cutoffs": {
-    "low_max": 0.3826,
-    "high_min": 0.7544,
-    "note": "Low: score < low_max  |  Medium: low_max \u2264 score < high_min  |  High: score \u2265 high_min  |  Cutoffs = p33 and p67 of calibrated VAL scores"
+    "low_max": 0.3749,
+    "high_min": 0.6988,
+    "note": "Low: score < low_max | Medium: low_max <= score < high_min | High: score >= high_min | Cutoffs = p33 and p67 of calibrated validation scores from final tuned LightGBM"
   },
   "cost_config": {
     "cost_FN": 2,
