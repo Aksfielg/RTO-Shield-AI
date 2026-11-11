@@ -93,6 +93,10 @@ def test_app_pages_and_components():
     # 7. Impact Simulator
     app.page_impact_simulator()
 
-    # 8. Limitations
+    # 8. Batch Scoring (both empty state and with sample test batch)
+    app.page_batch_scoring()
+    app.page_batch_scoring(artifacts, test_df)
+
+    # 9. Limitations
     app.page_limitations()
 

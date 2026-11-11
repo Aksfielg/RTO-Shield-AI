@@ -1251,10 +1251,14 @@ def page_impact_simulator(artifacts_arg=None, test_df_arg=None):
     render_top_badge()
 
     st.markdown('<div class="rto-hero-title">Impact Simulator</div>', unsafe_allow_html=True)
-    st.markdown('<div class="rto-hero-sub">Interactive what-if cost-benefit simulation for fulfillment triage policies.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="rto-hero-sub">Simulate economic cost-benefit and intervention ROI using real holdout test partition scores.</div>', unsafe_allow_html=True)
 
     artifacts = artifacts_arg or get_artifacts()
     cal_p, y_te = get_test_predictions()
+
+    N = len(y_te)
+    n_late_total = int(y_te.sum())
+    base_late_rate = n_late_total / N
 
     col_sim_in, col_sim_out = st.columns([1, 1.25], gap="large")
 
@@ -1262,90 +1266,594 @@ def page_impact_simulator(artifacts_arg=None, test_df_arg=None):
         st.markdown('<div class="rto-card">', unsafe_allow_html=True)
         st.markdown('### Business Inputs')
 
-        monthly_orders = st.number_input("Monthly Order Volume", min_value=1000, max_value=200000, value=10000, step=1000)
-        late_cost = st.number_input("Cost of Unresolved Late Delivery ($)", min_value=1.0, max_value=100.0, value=15.0, step=1.0, help="Customer friction, return handling, re-shipping cost.")
-        intervention_cost = st.number_input("Proactive Intervention Cost ($)", min_value=0.25, max_value=20.0, value=2.50, step=0.25, help="Cost of SMS/call confirmation or carrier expedited handling.")
-        rescue_rate = st.slider("Proactive Rescue Efficiency (%)", min_value=10, max_value=80, value=30, step=5, help="Share of flagged late deliveries saved by proactive action.") / 100.0
+        late_cost = st.number_input(
+            "Cost of a Failed Delivery ($)",
+            min_value=1.0,
+            max_value=200.0,
+            value=15.0,
+            step=1.0,
+            help="Average financial cost incurred when an order experiences delivery failure, customer friction, or return handling."
+        )
+        intervention_cost = st.number_input(
+            "Cost per Intervention ($)",
+            min_value=0.10,
+            max_value=50.0,
+            value=2.50,
+            step=0.25,
+            help="Direct operational cost of proactive SMS/call verification, address confirmation, or prioritized dispatch."
+        )
+        rescue_rate = st.slider(
+            "Intervention Success Rate (%)",
+            min_value=1,
+            max_value=100,
+            value=30,
+            step=1,
+            help="Share of intervened late deliveries that are successfully prevented or resolved."
+        ) / 100.0
 
         st.markdown('### Triage Policy')
-        policy_option = st.selectbox(
-            "Select Decision Policy:",
+        policy_selector = st.radio(
+            "Select Triage Policy:",
             [
-                "High Tier Flag (Score >= 0.699, Recommended)",
-                "Precision >= 80% Strategy (Score >= 0.399)",
-                "Max-F1 Strategy (Score >= 0.354)",
-                "Custom Threshold Slider",
-            ]
+                "Flag High tier (Score ≥ 0.699)",
+                "Flag by threshold",
+                "Flag all (Contact Everyone)",
+            ],
+            index=0,
         )
 
-        if policy_option == "High Tier Flag (Score >= 0.699, Recommended)":
-            thresh = 0.6988
-        elif policy_option == "Precision >= 80% Strategy (Score >= 0.399)":
-            thresh = 0.3994
-        elif policy_option == "Max-F1 Strategy (Score >= 0.354)":
-            thresh = 0.3538
-        else:
-            thresh = st.slider("Custom Threshold", min_value=0.10, max_value=0.90, value=0.50, step=0.02)
+        high_min = artifacts["thresholds"]["tier_cutoffs"]["high_min"]  # 0.6988
+
+        if policy_selector == "Flag High tier (Score ≥ 0.699)":
+            thresh = high_min
+            target_mask = (cal_p >= thresh)
+            policy_label = f"Flag High Tier (Score ≥ {high_min:.3f})"
+        elif policy_selector == "Flag by threshold":
+            thresh = st.slider(
+                "Custom Risk Score Threshold",
+                min_value=0.05,
+                max_value=0.95,
+                value=0.399,
+                step=0.01,
+                help="Orders with calibrated risk score ≥ threshold are targeted for intervention."
+            )
+            target_mask = (cal_p >= thresh)
+            policy_label = f"Flag by Threshold (Score ≥ {thresh:.3f})"
+        else:  # Flag all
+            thresh = 0.0
+            target_mask = np.ones(N, dtype=bool)
+            policy_label = "Flag All (Contact Everyone)"
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Compute empirical rates from test partition at threshold
-    pred_flag = (cal_p >= thresh).astype(int)
-    flagged_share = float(pred_flag.mean())
-    tp_count = int(((pred_flag == 1) & (y_te == 1)).sum())
-    fp_count = int(((pred_flag == 1) & (y_te == 0)).sum())
-    total_flagged_test = tp_count + fp_count
-    precision = tp_count / max(total_flagged_test, 1)
-    recall = tp_count / max(int((y_te == 1).sum()), 1)
+    # -----------------------------------------------------------------------
+    # Calculations on real TEST set (N = 9,863 orders)
+    # -----------------------------------------------------------------------
+    # 1. Chosen Policy
+    orders_targeted = int(target_mask.sum())
+    late_reached = int(((target_mask == 1) & (y_te == 1)).sum())
+    precision = (late_reached / orders_targeted) * 100.0 if orders_targeted > 0 else 0.0
+    recall = (late_reached / n_late_total) * 100.0 if n_late_total > 0 else 0.0
+    share_targeted = (orders_targeted / N) * 100.0
 
-    # Scale to monthly volume
-    scaled_flagged = int(monthly_orders * flagged_share)
-    scaled_late_caught = int(scaled_flagged * precision)
-    scaled_rescued = int(scaled_late_caught * rescue_rate)
-    gross_savings = scaled_rescued * late_cost
-    total_intervention_cost = scaled_flagged * intervention_cost
-    net_savings = gross_savings - total_intervention_cost
-    roi = (net_savings / max(total_intervention_cost, 1)) * 100.0
-    status_quo_cost = int(monthly_orders * float(y_te.mean()) * late_cost)
-    managed_cost = status_quo_cost - gross_savings + total_intervention_cost
+    gross_savings_policy = late_reached * rescue_rate * late_cost
+    int_cost_policy = orders_targeted * intervention_cost
+    net_benefit_policy = gross_savings_policy - int_cost_policy
+
+    # 2. Benchmark 1: Do Nothing
+    net_benefit_do_nothing = 0.0
+
+    # 3. Benchmark 2: Contact Everyone (Flag all)
+    orders_targeted_all = N
+    late_reached_all = n_late_total
+    precision_all = base_late_rate * 100.0
+    gross_savings_all = n_late_total * rescue_rate * late_cost
+    int_cost_all = N * intervention_cost
+    net_benefit_all = gross_savings_all - int_cost_all
+
+    # Net benefit relative to benchmarks
+    net_vs_do_nothing = net_benefit_policy - net_benefit_do_nothing
+    net_vs_contact_all = net_benefit_policy - net_benefit_all
 
     with col_sim_out:
         st.markdown('<div class="rto-card">', unsafe_allow_html=True)
-        st.markdown(f'### Projected Monthly Economics (Threshold: `{thresh:.3f}`)')
+        st.markdown(f'### Test Set Economics ({policy_label})')
 
-        m1, m2 = st.columns(2)
-        with m1:
-            st.metric("Orders Flagged / Month", f"{scaled_flagged:,}", f"{flagged_share*100:.1f}% of volume")
-            st.metric("Gross Friction Saved", f"${gross_savings:,.0f}", f"{scaled_rescued:,} orders rescued")
-        with m2:
-            st.metric("Total Intervention Cost", f"${total_intervention_cost:,.0f}", f"${intervention_cost:.2f} / flagged order")
+        k1, k2 = st.columns(2)
+        with k1:
             st.metric(
-                "Net Monthly Savings",
-                f"${net_savings:,.0f}",
-                f"ROI: {roi:+.1f}%",
-                delta_color="normal" if net_savings > 0 else "inverse"
+                "Orders Targeted",
+                f"{orders_targeted:,}",
+                f"{share_targeted:.1f}% of test set ({N:,} total)",
+            )
+            st.metric(
+                "Late Orders Reached",
+                f"{late_reached:,}",
+                f"{recall:.1f}% recall of late orders",
+            )
+        with k2:
+            st.metric(
+                "Targeting Precision",
+                f"{precision:.1f}%",
+                f"Baseline: {base_late_rate*100:.1f}%",
+            )
+            st.metric(
+                "Net Benefit (vs Do Nothing)",
+                f"${net_benefit_policy:+,.2f}",
+                f"{'+$' if net_vs_contact_all >= 0 else '-$'}{abs(net_vs_contact_all):,.2f} vs Contact All",
+                delta_color="normal" if net_benefit_policy >= 0 else "inverse"
             )
 
-        # Plotly comparison
-        cost_df = pd.DataFrame([
-            {"Scenario": "Status Quo (No Model)", "Cost ($)": status_quo_cost, "Category": "Friction Loss"},
-            {"Scenario": "With RTO Shield", "Cost ($)": managed_cost, "Category": "Managed Cost"},
+        # Plotly comparison chart
+        comp_df = pd.DataFrame([
+            {
+                "Strategy": "Do Nothing",
+                "Net Benefit ($)": net_benefit_do_nothing,
+                "Orders Targeted": 0,
+            },
+            {
+                "Strategy": "Contact Everyone",
+                "Net Benefit ($)": net_benefit_all,
+                "Orders Targeted": N,
+            },
+            {
+                "Strategy": policy_label,
+                "Net Benefit ($)": net_benefit_policy,
+                "Orders Targeted": orders_targeted,
+            },
         ])
-        fig_cost = px.bar(
-            cost_df,
-            x="Scenario",
-            y="Cost ($)",
-            color="Scenario",
-            color_discrete_map={"Status Quo (No Model)": "#94A3B8", "With RTO Shield": "#4F46E5"},
-            text=cost_df["Cost ($)"].apply(lambda v: f"${v:,.0f}"),
-            title=f"<b>Monthly Cost Comparison (Net Savings: ${net_savings:,.0f})</b>",
-        )
-        fig_cost.update_traces(textposition="outside")
-        fig_cost.update_layout(yaxis=dict(gridcolor="#F1F5F9"), height=250, paper_bgcolor="white", plot_bgcolor="white", showlegend=False)
-        st.plotly_chart(fig_cost, width="stretch")
 
-        st.caption(f"Precision: {precision*100:.1f}% &bull; Recall: {recall*100:.1f}% &bull; Baseline Test Late Rate: {y_te.mean()*100:.1f}%.")
+        fig_chart = px.bar(
+            comp_df,
+            x="Strategy",
+            y="Net Benefit ($)",
+            text=comp_df["Net Benefit ($)"].apply(lambda v: f"${v:+,.2f}"),
+            color="Strategy",
+            color_discrete_map={
+                "Do Nothing": "#94A3B8",
+                "Contact Everyone": "#F59E0B" if net_benefit_all >= 0 else "#EF4444",
+                policy_label: "#4F46E5",
+            },
+            title="<b>Net Benefit vs Baseline Across Strategies (Test Set N = 9,863)</b>",
+        )
+        fig_chart.update_traces(textposition="outside")
+        min_y = min(0.0, float(net_benefit_all), float(net_benefit_policy)) * 1.2
+        max_y = max(100.0, float(net_benefit_policy), float(net_benefit_all)) * 1.25
+        fig_chart.update_layout(
+            yaxis=dict(gridcolor="#F1F5F9", range=[min_y, max_y]),
+            xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+            height=280,
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            showlegend=False,
+            margin=dict(l=10, r=10, t=35, b=20),
+        )
+        st.plotly_chart(fig_chart, width="stretch")
+
         st.markdown('</div>', unsafe_allow_html=True)
+
+    # Comparison summary table
+    st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+    st.markdown('### Strategic Policy Comparison (Holdout Test Partition: 9,863 Orders)')
+    policy_comp_table = pd.DataFrame([
+        {
+            "Policy Strategy": "Do Nothing (Status Quo)",
+            "Orders Targeted": "0 (0.0%)",
+            "Late Reached": "0 (0.0%)",
+            "Precision": "N/A",
+            "Intervention Cost": "$0.00",
+            "Gross Savings": "$0.00",
+            "Net Benefit": "$0.00",
+            "Vs Contact Everyone": f"${0.0 - net_benefit_all:+,.2f}",
+        },
+        {
+            "Policy Strategy": "Contact Everyone (Flag All)",
+            "Orders Targeted": f"{N:,} (100.0%)",
+            "Late Reached": f"{n_late_total:,} (100.0%)",
+            "Precision": f"{precision_all:.1f}%",
+            "Intervention Cost": f"${int_cost_all:,.2f}",
+            "Gross Savings": f"${gross_savings_all:,.2f}",
+            "Net Benefit": f"${net_benefit_all:+,.2f}",
+            "Vs Contact Everyone": "$0.00",
+        },
+        {
+            "Policy Strategy": f"Selected: {policy_label}",
+            "Orders Targeted": f"{orders_targeted:,} ({share_targeted:.1f}%)",
+            "Late Reached": f"{late_reached:,} ({recall:.1f}%)",
+            "Precision": f"{precision:.1f}%",
+            "Intervention Cost": f"${int_cost_policy:,.2f}",
+            "Gross Savings": f"${gross_savings_policy:,.2f}",
+            "Net Benefit": f"${net_benefit_policy:+,.2f}",
+            "Vs Contact Everyone": f"${net_vs_contact_all:+,.2f}",
+        },
+    ])
+    st.dataframe(policy_comp_table, width="stretch", hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Visible required note
+    st.markdown("""
+    <div class="rto-card" style="border-left: 4px solid #4F46E5; background-color: #F8FAFC; margin-top: 1rem;">
+        <p style="margin: 0; font-size: 0.95rem; color: #334155; line-height: 1.5;">
+            ℹ️ <strong>Model Assumption Note:</strong> Costs and success rate are user-set assumptions, not measured. Estimating real intervention effect is the job of Model 2 (uplift) next semester.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ===========================================================================
+# Page 8: Batch Scoring
+# ===========================================================================
+def page_batch_scoring(artifacts_arg=None, test_df_arg=None):
+    render_top_badge()
+
+    st.markdown('<div class="rto-hero-title">Batch Scoring</div>', unsafe_allow_html=True)
+    st.markdown('<div class="rto-hero-sub">Upload an order batch to run pre-dispatch inference, SHAP reason codes, and operational triage.</div>', unsafe_allow_html=True)
+
+    artifacts = artifacts_arg or get_artifacts()
+    _, test_df = get_datasets() if test_df_arg is None else (None, test_df_arg)
+
+    st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+    st.markdown('### 1. Upload or Select Batch Data')
+
+    col_u1, col_u2 = st.columns([1.5, 1], gap="medium")
+
+    with col_u1:
+        uploaded_file = st.file_uploader(
+            "Upload Orders CSV",
+            type=["csv"],
+            help="Upload a CSV file containing pre-dispatch order features (e.g. Shipping_Mode, Type, order_value, etc.)."
+        )
+
+    with col_u2:
+        st.markdown("**Or load a sample batch from holdout data:**")
+        col_btn1, col_btn2 = st.columns(2)
+        load_labeled = col_btn1.button("⚡ 50 Test Orders (With Target)", help="50 real test orders with actual late delivery label for performance audit.")
+        load_unlabeled = col_btn2.button("⚡ 50 Test Orders (Unlabeled)", help="50 test orders without target to simulate real checkout scoring.")
+
+    # Determine which DataFrame to score
+    df_to_score = None
+    source_name = ""
+
+    if uploaded_file is not None:
+        try:
+            df_to_score = pd.read_csv(uploaded_file)
+            source_name = f"Uploaded file: {uploaded_file.name}"
+        except Exception as e:
+            st.error(f"Failed to read CSV: {e}")
+    elif load_labeled:
+        df_to_score = test_df.sample(50, random_state=42).copy().reset_index(drop=True)
+        source_name = "50 Sample Holdout Orders (Labeled with Ground Truth)"
+    elif load_unlabeled:
+        df_to_score = test_df.sample(50, random_state=123).copy().reset_index(drop=True)
+        if TARGET_COL in df_to_score.columns:
+            df_to_score = df_to_score.drop(columns=[TARGET_COL])
+        source_name = "50 Sample Holdout Orders (Unlabeled)"
+    elif test_df_arg is not None:
+        # Pre-supplied in programmatic/unit test execution
+        df_to_score = test_df_arg.head(20).copy().reset_index(drop=True)
+        source_name = "Automated Test Batch (20 Orders)"
+
+    # Provide a template download button
+    sample_template = pd.DataFrame([
+        {
+            "Order Id": 80001,
+            "Shipping_Mode": "First Class",
+            "Days_for_shipment_scheduled": 1,
+            "Type": "CASH",
+            "order_value": 149.99,
+            "n_items": 2,
+            "avg_discount_rate": 0.05,
+            "value_per_item": 75.00,
+            "order_hour": 15,
+            "order_dow": 3,
+            "order_month": 8,
+            "Market": "Pacific Asia",
+            "Department_Name": "Apparel",
+            "Customer_Segment": "Consumer",
+            "Order_Country": "India",
+            "Order_Region": "South Asia",
+        },
+        {
+            "Order Id": 80002,
+            "Shipping_Mode": "Standard Class",
+            "Days_for_shipment_scheduled": 4,
+            "Type": "PAYMENT",
+            "order_value": 89.50,
+            "n_items": 1,
+            "avg_discount_rate": 0.0,
+            "value_per_item": 89.50,
+            "order_hour": 10,
+            "order_dow": 1,
+            "order_month": 8,
+            "Market": "Europe",
+            "Department_Name": "Fitness",
+            "Customer_Segment": "Corporate",
+            "Order_Country": "United Kingdom",
+            "Order_Region": "Northern Europe",
+        }
+    ])
+    st.download_button(
+        label="📥 Download CSV Schema Template",
+        data=sample_template.to_csv(index=False).encode("utf-8"),
+        file_name="rto_shield_batch_template.csv",
+        mime="text/csv",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if df_to_score is None:
+        st.info("👆 Please upload a CSV file or click one of the sample batch buttons above to proceed.")
+        st.markdown("""
+        <div class="rto-card" style="border-left: 4px solid #4F46E5; background-color: #F8FAFC; margin-top: 1.5rem;">
+            <p style="margin: 0; font-size: 0.95rem; color: #334155; line-height: 1.5;">
+                📌 <strong>Future Deployment Note:</strong> This batch scoring interface enables the exact same scoring and explainability pipeline to be run on real-world Indian D2C order data later.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    # -----------------------------------------------------------------------
+    # Schema validation & harmonization
+    # -----------------------------------------------------------------------
+    st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+    st.markdown(f'### 2. Schema Validation & Ingestion ({source_name})')
+
+    df_clean = df_to_score.copy()
+    col_renames = {
+        "Shipping Mode": "Shipping_Mode",
+        "Days for shipment (scheduled)": "Days_for_shipment_scheduled",
+        "Customer Segment": "Customer_Segment",
+        "Department Name": "Department_Name",
+        "Order Region": "Order_Region",
+        "Order Country": "Order_Country",
+        "order date (DateOrders)": "order_date",
+    }
+    for old_c, new_c in col_renames.items():
+        if old_c in df_clean.columns and new_c not in df_clean.columns:
+            df_clean[new_c] = df_clean[old_c]
+
+    # Check for basic required columns
+    known_cols = [c for c in CATEGORICAL_FEATURES + NUMERIC_FEATURES if c in df_clean.columns]
+    st.write(f"Validated **{len(df_clean):,} orders**. Recognized **{len(known_cols)}/{len(CATEGORICAL_FEATURES) + len(NUMERIC_FEATURES)}** model feature columns.")
+
+    # Auto-derive standard helper fields if missing
+    mode_to_days = {"Same Day": 0, "First Class": 1, "Second Class": 2, "Standard Class": 4}
+    if "Days_for_shipment_scheduled" not in df_clean.columns and "Shipping_Mode" in df_clean.columns:
+        df_clean["Days_for_shipment_scheduled"] = df_clean["Shipping_Mode"].map(mode_to_days).fillna(4)
+
+    if "value_per_item" not in df_clean.columns and "order_value" in df_clean.columns and "n_items" in df_clean.columns:
+        df_clean["value_per_item"] = df_clean["order_value"] / df_clean["n_items"].replace(0, np.nan)
+        df_clean["value_per_item"] = df_clean["value_per_item"].fillna(df_clean["order_value"])
+
+    if "is_cash" not in df_clean.columns and "Type" in df_clean.columns:
+        df_clean["is_cash"] = (df_clean["Type"].astype(str).str.upper() == "CASH").astype(int)
+
+    # Detect outcome column if present
+    outcome_candidates = ["Late_delivery_risk", "late_delivery_risk", "actual", "outcome", "target", "is_late", "late"]
+    detected_outcome_col = None
+    for cand in outcome_candidates:
+        if cand in df_clean.columns:
+            detected_outcome_col = cand
+            break
+
+    if detected_outcome_col:
+        st.success(f"Outcome column detected: `{detected_outcome_col}`. Performance evaluation and calibration will be computed.")
+    else:
+        st.info("No ground truth outcome column detected. Running pure inference and operational tier triage.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------
+    # Batch scoring execution
+    # -----------------------------------------------------------------------
+    with st.spinner("Scoring orders and generating SHAP explanations..."):
+        scored_df = predict.score_batch(df_clean)
+
+    # -----------------------------------------------------------------------
+    # Tier breakdown & KPI metrics
+    # -----------------------------------------------------------------------
+    st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+    st.markdown('### 3. Triage & Risk Tier Allocations')
+
+    n_total = len(scored_df)
+    n_low = int((scored_df["tier"] == "Low").sum())
+    n_med = int((scored_df["tier"] == "Medium").sum())
+    n_high = int((scored_df["tier"] == "High").sum())
+
+    pct_low = (n_low / n_total) * 100.0 if n_total > 0 else 0.0
+    pct_med = (n_med / n_total) * 100.0 if n_total > 0 else 0.0
+    pct_high = (n_high / n_total) * 100.0 if n_total > 0 else 0.0
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.markdown(f"""
+        <div class="rto-metric-card">
+            <div class="rto-metric-label">Total Batch Volume</div>
+            <div class="rto-metric-val">{n_total:,}</div>
+            <div class="rto-metric-sub">Orders Processed</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m2:
+        st.markdown(f"""
+        <div class="rto-metric-card" style="border-top: 3px solid #10B981;">
+            <div class="rto-metric-label">Low Risk (&lt; 37.5%)</div>
+            <div class="rto-metric-val" style="color:#065F46;">{n_low:,}</div>
+            <div class="rto-metric-sub" style="color:#059669;">{pct_low:.1f}% &bull; Standard Flow</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m3:
+        st.markdown(f"""
+        <div class="rto-metric-card" style="border-top: 3px solid #F59E0B;">
+            <div class="rto-metric-label">Medium Risk (37.5-69.9%)</div>
+            <div class="rto-metric-val" style="color:#92400E;">{n_med:,}</div>
+            <div class="rto-metric-sub" style="color:#D97706;">{pct_med:.1f}% &bull; Monitor SLA</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m4:
+        st.markdown(f"""
+        <div class="rto-metric-card" style="border-top: 3px solid #EF4444;">
+            <div class="rto-metric-label">High Risk (≥ 69.9%)</div>
+            <div class="rto-metric-val" style="color:#991B1B;">{n_high:,}</div>
+            <div class="rto-metric-sub" style="color:#DC2626;">{pct_high:.1f}% &bull; Flagged for Action</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Plotly tier distribution bar
+    tier_chart_df = pd.DataFrame([
+        {"Tier": "Low (< 37.5%)", "Orders": n_low, "Share": pct_low},
+        {"Tier": "Medium (37.5 - 69.9%)", "Orders": n_med, "Share": pct_med},
+        {"Tier": "High (≥ 69.9%)", "Orders": n_high, "Share": pct_high},
+    ])
+    fig_tier = px.bar(
+        tier_chart_df,
+        x="Tier",
+        y="Orders",
+        text=tier_chart_df.apply(lambda r: f"{r['Orders']:,} ({r['Share']:.1f}%)", axis=1),
+        color="Tier",
+        color_discrete_map={
+            "Low (< 37.5%)": "#10B981",
+            "Medium (37.5 - 69.9%)": "#F59E0B",
+            "High (≥ 69.9%)": "#EF4444",
+        },
+        title="<b>Batch Order Distribution Across Operational Tiers</b>"
+    )
+    fig_tier.update_traces(textposition="outside")
+    fig_tier.update_layout(
+        yaxis=dict(gridcolor="#F1F5F9"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        height=260,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        showlegend=False,
+        margin=dict(l=10, r=10, t=35, b=20),
+    )
+    st.plotly_chart(fig_tier, width="stretch")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------
+    # Ground Truth Evaluation & Calibration (if outcome present)
+    # -----------------------------------------------------------------------
+    if detected_outcome_col:
+        y_true = df_clean[detected_outcome_col].astype(int).values
+        y_pred_prob = scored_df["risk_score"].values
+
+        st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+        st.markdown('### 4. Empirical Evaluation & Calibration Audit')
+
+        auc = roc_auc_score(y_true, y_pred_prob)
+        pr_auc = average_precision_score(y_true, y_pred_prob)
+        brier = np.mean((y_pred_prob - y_true) ** 2)
+        base_rate = float(y_true.mean())
+
+        ev1, ev2, ev3, ev4 = st.columns(4)
+        with ev1:
+            st.metric("Batch ROC-AUC", f"{auc:.3f}")
+        with ev2:
+            st.metric("Batch PR-AUC", f"{pr_auc:.3f}")
+        with ev3:
+            st.metric("Batch Brier Score", f"{brier:.3f}")
+        with ev4:
+            st.metric("Batch Late Rate", f"{base_rate*100:.1f}%")
+
+        # Calibration summary by tier
+        scored_with_outcome = scored_df.copy()
+        scored_with_outcome["actual_outcome"] = y_true
+
+        cal_rows = []
+        for tier_name in ["Low", "Medium", "High"]:
+            sub = scored_with_outcome[scored_with_outcome["tier"] == tier_name]
+            sub_count = len(sub)
+            if sub_count > 0:
+                mean_p = float(sub["risk_score"].mean())
+                act_r = float(sub["actual_outcome"].mean())
+                gap = mean_p - act_r
+            else:
+                mean_p, act_r, gap = 0.0, 0.0, 0.0
+            cal_rows.append({
+                "Risk Tier": tier_name,
+                "Orders (#)": sub_count,
+                "Volume Share (%)": f"{(sub_count / n_total) * 100:.1f}%" if n_total > 0 else "0.0%",
+                "Mean Predicted Score": f"{mean_p:.3f}",
+                "Actual Late Rate": f"{act_r*100:.1f}%",
+                "Calibration Gap": f"{gap:+.3f}",
+            })
+
+        cal_summary_df = pd.DataFrame(cal_rows)
+        st.markdown("#### Calibration Summary by Risk Tier")
+        st.dataframe(cal_summary_df, width="stretch", hide_index=True)
+
+        # Plotly grouped bar chart comparing mean predicted vs actual
+        cal_plot_df = pd.DataFrame([
+            {"Tier": r["Risk Tier"], "Metric": "Mean Predicted", "Rate": float(r["Mean Predicted Score"])}
+            for r in cal_rows
+        ] + [
+            {"Tier": r["Risk Tier"], "Metric": "Actual Late Rate", "Rate": float(r["Actual Late Rate"].replace("%", "")) / 100.0}
+            for r in cal_rows
+        ])
+        fig_cal = px.bar(
+            cal_plot_df,
+            x="Tier",
+            y="Rate",
+            color="Metric",
+            barmode="group",
+            color_discrete_map={"Mean Predicted": "#4F46E5", "Actual Late Rate": "#94A3B8"},
+            title="<b>Predicted vs Actual Late Rate Across Tiers</b>",
+        )
+        fig_cal.update_layout(
+            yaxis=dict(gridcolor="#F1F5F9", tickformat=".0%"),
+            xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+            height=260,
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            margin=dict(l=10, r=10, t=35, b=20),
+        )
+        st.plotly_chart(fig_cal, width="stretch")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------
+    # Scored Results Table & Download
+    # -----------------------------------------------------------------------
+    st.markdown('<div class="rto-card">', unsafe_allow_html=True)
+    st.markdown('### 5. Download & Inspect Scored Results')
+
+    col_exp1, col_exp2 = st.columns([1.5, 1])
+    with col_exp1:
+        csv_bytes = scored_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Enriched Batch Predictions (CSV)",
+            data=csv_bytes,
+            file_name="rto_shield_batch_scored.csv",
+            mime="text/csv",
+        )
+
+    st.markdown("#### Preview Scored Orders (First 20 Records)")
+    display_cols = ["order_id", "display_score", "tier", "flagged", "reason_1", "reason_2", "reason_3"]
+    if detected_outcome_col:
+        scored_df["actual"] = df_clean[detected_outcome_col].values
+        display_cols.insert(4, "actual")
+
+    styled_preview = scored_df[display_cols].head(20).rename(columns={
+        "order_id": "Order ID",
+        "display_score": "Risk Score",
+        "tier": "Tier",
+        "flagged": "Flagged",
+        "actual": "Actual Outcome",
+        "reason_1": "Reason Code 1",
+        "reason_2": "Reason Code 2",
+        "reason_3": "Reason Code 3",
+    })
+    st.dataframe(styled_preview, width="stretch", hide_index=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Visible required note
+    st.markdown("""
+    <div class="rto-card" style="border-left: 4px solid #4F46E5; background-color: #F8FAFC; margin-top: 1.5rem;">
+        <p style="margin: 0; font-size: 0.95rem; color: #334155; line-height: 1.5;">
+            📌 <strong>Future Deployment Note:</strong> This batch scoring interface enables the exact same scoring and explainability pipeline to be run on real-world Indian D2C order data later.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ===========================================================================
 # Page 8: Limitations
@@ -1421,6 +1929,7 @@ PAGES_CONFIG = {
         st.Page(page_score_order, title="Score an Order", icon="🛡️"),
         st.Page(page_real_test_orders, title="Real Test Orders", icon="📦"),
         st.Page(page_impact_simulator, title="Impact Simulator", icon="💡"),
+        st.Page(page_batch_scoring, title="Batch Scoring", icon="📁"),
     ],
     "Model Evaluation & Governance": [
         st.Page(page_performance, title="Performance", icon="📊"),
