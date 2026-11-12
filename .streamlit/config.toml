@@ -1,3 +1,13 @@
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#1E293B"
+font = "sans-serif"
+baseRadius = "large"
+borderColor = "#E2E8F0"
+
 [browser]
 gatherUsageStats = false
 
@@ -5,4 +15,3 @@ gatherUsageStats = false
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-

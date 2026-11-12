@@ -7,8 +7,9 @@ Executes 5 foundational sanity checks using the final model's feature pipeline:
   1. Label-shuffle test: shuffle y_train with seed 42, retrain using final LightGBM
      hyperparameters, and report validation and test ROC-AUC (expect ~0.50).
      Prints PASS if both validation and test ROC-AUC are within [0.47, 0.53].
-  2. Trivial policies on TEST: evaluate Flag-all, Flag-none, Flag by High tier
-     (score >= 0.7544), and Flag by final threshold (score >= 0.3538).
+  2. Trivial policies on TEST: evaluate Flag-all, Flag-none, Flag by High tier,
+     Flag by Precision>=0.80 threshold and Flag by the max-F1 threshold
+     (all cutoffs are read from models/thresholds.json).
      Reports Precision, Recall, F1, and Share of orders flagged (%).
   3. Top-decile composition: analyse the shipping-mode mix of the top 10% scored
      orders on TEST versus the overall test distribution.
@@ -207,11 +208,10 @@ def run_trivial_policies(data: dict) -> list[dict]:
     cal_preds = cal.predict(raw_preds)
 
     thr_final = float(
-        thr_data["thresholds"].get("final_tuned_max_f1",
-        thr_data["thresholds"].get("max_f1", 0.3538))
+        thr_data["thresholds"]["final_tuned_max_f1"]
     )
     thr_high = float(thr_data["tier_cutoffs"]["high_min"])
-    thr_p80  = float(thr_data["thresholds"].get("precision_80", 0.3994))
+    thr_p80  = float(thr_data["thresholds"]["precision_80"])
 
     policies = {
         "Flag-all (all positive)": np.ones_like(y_te, dtype=int),
@@ -257,11 +257,12 @@ def run_top_decile_composition(data: dict) -> dict:
     raw_preds = model.predict_proba(X_te)[:, 1]
     cal_preds = cal.predict(raw_preds)
     test_df["risk_score"] = cal_preds
+    test_df["raw_score"] = raw_preds   # ranking uses RAW scores (calibrated scores are heavily tied)
 
     n_test = len(test_df)
     top10_n = int(np.round(0.10 * n_test))
 
-    top10_df = test_df.sort_values("risk_score", ascending=False).iloc[:top10_n]
+    top10_df = test_df.sort_values("raw_score", ascending=False).iloc[:top10_n]
 
     modes = sorted(test_df["Shipping_Mode"].dropna().unique())
     rows = []
@@ -373,6 +374,8 @@ def run_provenance_check() -> dict:
 # ===========================================================================
 
 def write_markdown_report(
+    final_roc_auc: float,
+    n_orders_total: int,
     check1: dict,
     check2: list[dict],
     check3: dict,
@@ -403,13 +406,14 @@ def write_markdown_report(
     md.append(f"| Test ROC-AUC | ~0.50 [0.47, 0.53] | **{check1['test_roc_auc']:.4f}** | {'PASS' if 0.47 <= check1['test_roc_auc'] <= 0.53 else 'FAIL'} |")
     md.append("")
     md.append(f"**Overall Result:** `{check1['status']}`  ")
-    md.append("- **Interpretation:** When true relationships between features and outcome are destroyed by label permutation, the model achieves near-exact chance performance (~0.495). This proves that the 0.7713 test ROC-AUC of the genuine model stems from true signal, not preprocessor leakage or data memorisation.")
+    md.append(f"- **Interpretation:** When true relationships between features and outcome are destroyed by label permutation, the model achieves near-chance performance (validation {check1['val_roc_auc']:.4f}, test {check1['test_roc_auc']:.4f}). This proves that the {final_roc_auc:.4f} test ROC-AUC of the genuine model stems from true signal, not preprocessor leakage or data memorisation.")
     md.append("")
     md.append("---")
     md.append("")
 
     # Section 2
-    md.append("## 2. Trivial Policies Comparison (Test Set, N = 9,863)")
+    n_test = int(round(check2[0]["flagged_orders"]))  # flag-all flags every test order
+    md.append(f"## 2. Trivial Policies Comparison (Test Set, N = {n_test:,})")
     md.append("")
     md.append("Evaluating whether the model offers actionable operational value over simple heuristic rules or uncalibrated default baselines:")
     md.append("")
@@ -419,15 +423,19 @@ def write_markdown_report(
         md.append(f"| **{r['policy']}** | {r['precision']:.4f} | {r['recall']:.4f} | {r['f1']:.4f} | {r['flagged_orders']:,} | {r['share_flagged_pct']:.2f}% |")
     md.append("")
     md.append("**Policy Takeaways:**")
-    md.append("- **Flag-all**: Yields an artificial F1 of 0.7101 purely because the baseline test positive rate is 55.05%. However, flagging 100% of orders causes massive operational overhead.")
-    md.append("- **Flag by High Tier (>= 0.7544)**: Provides exceptional precision (**88.36%**) while flagging only **32.50%** of orders, successfully capturing over half (52.15%) of all late shipments with minimal false alarms.")
-    md.append("- **Flag by Final Threshold (>= 0.3538)**: Maximises F1 (0.7259) and recall (**95.49%**), ideal for risk-averse merchants prioritising comprehensive late-delivery prevention.")
+    pol = {r["policy"].split(" (")[0]: r for r in check2}
+    fa = pol["Flag-all"]
+    ht = next(r for r in check2 if r["policy"].startswith("Flag by High tier"))
+    ft = next(r for r in check2 if r["policy"].startswith("Flag by final threshold"))
+    md.append(f"- **Flag-all**: Yields an F1 of {fa['f1']:.4f} purely because the baseline test positive rate is {fa['precision']*100:.2f}%. Flagging 100% of orders is not actionable.")
+    md.append(f"- **{ht['policy']}**: precision **{ht['precision']*100:.2f}%** while flagging **{ht['share_flagged_pct']:.2f}%** of orders, capturing {ht['recall']*100:.2f}% of all late shipments.")
+    md.append(f"- **{ft['policy']}**: F1 {ft['f1']:.4f} and recall **{ft['recall']*100:.2f}%**, but it flags {ft['share_flagged_pct']:.2f}% of orders, so it adds little over flag-all.")
     md.append("")
     md.append("---")
     md.append("")
 
     # Section 3
-    md.append("## 3. Top-Decile Composition (Top 10% Scored Test Orders, N = 986)")
+    md.append(f"## 3. Top-Decile Composition (Top 10% Scored Test Orders, N = {check3['top10_n']:,})")
     md.append("")
     md.append("Analysing the shipping-mode distribution within the highest 10% risk scores compared against the overall test distribution:")
     md.append("")
@@ -437,9 +445,10 @@ def write_markdown_report(
         md.append(f"| **{r['shipping_mode']}** | {r['top10_count']} | {r['top10_share_pct']:.2f}% | {r['overall_test_count']} | {r['overall_share_pct']:.2f}% | {r['empirical_late_rate']:.4f} |")
     md.append("")
     md.append("**Analytical Insight:**")
-    md.append("- **99.70% of the top decile** consists of **First Class** orders (983 of 986 orders).")
-    md.append("- In the DataCo dataset, First Class has a 1-day contracted delivery SLA, and ground carriers fail this SLA ~95.0% of the time.")
-    md.append("- The model correctly concentrates its highest risk predictions on the segment with near-deterministic fulfillment friction.")
+    top = max(check3["rows"], key=lambda r: r["top10_share_pct"])
+    md.append(f"- **{top['top10_share_pct']:.2f}% of the top decile** consists of **{top['shipping_mode']}** orders ({top['top10_count']} of {check3['top10_n']}).")
+    md.append(f"- {top['shipping_mode']} has an empirical late rate of {top['empirical_late_rate']*100:.1f}% in the test set.")
+    md.append("- The highest scores concentrate on the segment where the label is nearly deterministic (see MODEL_CARD limitations).")
     md.append("")
     md.append("---")
     md.append("")
@@ -456,10 +465,8 @@ def write_markdown_report(
         md.append(f"| **{r['shipping_mode']}** | {r['n_orders']:,} | {r['share_of_test_pct']:.2f}% | {r['mean_predicted_score']:.4f} | {r['actual_late_rate']:.4f} | {diff_str} |")
     md.append("")
     md.append("**Segment Calibration Insights:**")
-    md.append("- **Standard Class (59.7% of volume)**: Mean predicted score is **37.92%** vs **38.08%** actual late rate (calibration error of only **-0.15%**). Although within-segment ROC-AUC is low (~0.53), the overall probability level is calibrated.")
-    md.append("- **First Class (15.3% of volume)**: Mean predicted score of **95.51%** matches the empirical **95.04%** rate (+0.47% error).")
-    md.append("- **Second Class (19.5% of volume)**: Predicted **75.90%** vs **76.91%** empirical (-1.01% error).")
-    md.append("- **Same Day (5.5% of volume)**: Predicted **45.04%** vs **50.28%** empirical (-5.24% error).")
+    for r in check4:
+        md.append(f"- **{r['shipping_mode']} ({r['share_of_test_pct']:.1f}% of volume)**: mean predicted {r['mean_predicted_score']*100:.2f}% vs {r['actual_late_rate']*100:.2f}% actual ({r['calibration_error']*100:+.2f} pp).")
     md.append("")
     md.append("---")
     md.append("")
@@ -474,7 +481,7 @@ def write_markdown_report(
     md.append(f"| **File Size** | {check5['file_size_bytes']:,} bytes ({check5['file_size_mb']} MB) |")
     md.append(f"| **Row Count (excl. header)** | **{check5['row_count']:,}** |")
     md.append(f"| **SHA-256 Checksum** | `{check5['sha256']}` |")
-    md.append(f"| **Deduplicated Orders** | 65,752 order-level records |")
+    md.append(f"| **Deduplicated Orders** | {n_orders_total:,} order-level records |")
     md.append("")
     md.append("This SHA-256 checksum uniquely identifies the exact version 5 DataCo benchmark dataset used across all experimental milestones.")
 
@@ -546,7 +553,10 @@ def main() -> None:
 
     # Write Markdown
     print("  Writing markdown report to outputs/sanity_checks.md...")
-    write_markdown_report(check1, check2, check3, check4, check5)
+    # ranking metric -> RAW scores (same convention as final_metrics.json)
+    final_roc = float(roc_auc_score(data["y_te"], data["final_model"].predict_proba(data["X_te"])[:, 1]))
+    n_orders_total = len(data["train_df"]) + len(data["val_df"]) + len(data["test_df"])
+    write_markdown_report(final_roc, n_orders_total, check1, check2, check3, check4, check5)
     print("  Report successfully written.")
     print()
 

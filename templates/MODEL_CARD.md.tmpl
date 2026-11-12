@@ -1,0 +1,202 @@
+# Model Card — RTO Shield AI, Model 1
+
+<!-- GENERATED FILE: edit templates/MODEL_CARD.md.tmpl, then run `python src/11_render_docs.py`. -->
+
+> Metrics generated {{ M.meta.generated | raw }} from `outputs/final_metrics.json` and `models/thresholds.json`.
+> Dataset: Constante et al. 2019, Mendeley Data V5, DOI 10.17632/8gx2fvg2k6.5
+
+---
+
+## 1. Intended Use
+
+| | |
+|---|---|
+| **Primary use** | Academic and exploratory prototype to evaluate whether pre-dispatch order features correlate with `Late_delivery_risk` in a multi-market supply chain. |
+| **Research use cases** | Investigating pre-dispatch risk signals, evaluating time-based leakage safeguards, demonstrating explainable risk tiering with SHAP reason codes. |
+| **Output** | Calibrated risk score in [0, 1], risk tier (Low / Medium / High), boolean flag (= High tier), and 3 plain-English reasons. |
+| **NOT intended for** | Real-world Indian D2C e-commerce RTO prediction; autonomous order cancellation; individual customer blacklisting; credit/fraud profiling; production deployment without retraining on verified delivery outcomes. |
+| **Proxy target caveat** | The target is `Late_delivery_risk`, NOT Return-To-Origin (RTO). It is an upstream operational proxy and does NOT represent package refusal, COD failure, or return to warehouse. |
+| **Claims not made** | No result in this card measures RTO, doorstep-refusal or Indian COD performance; "cash" payment type is not a verified COD indicator. |
+| **Decision authority** | Advisory only. All flagged orders must be reviewed by a human fulfilment specialist before any operational change is made. |
+
+---
+
+## 2. Model Details
+
+| | |
+|---|---|
+| **Model type** | {{ M.model.type | raw }} |
+| **Framework** | LightGBM, scikit-learn |
+| **Hyperparameters** | n_estimators={{ M.model.hyperparameters.n_estimators | int }}, max_depth={{ M.model.hyperparameters.max_depth | int }}, learning_rate={{ M.model.hyperparameters.learning_rate | f4 }}, subsample={{ M.model.hyperparameters.subsample | f2 }}, colsample_bytree={{ M.model.hyperparameters.colsample_bytree | f2 }}, min_child_weight={{ M.model.hyperparameters.min_child_weight | int }}, reg_lambda={{ M.model.hyperparameters.reg_lambda | f2 }} |
+| **Calibration** | {{ M.model.calibration | raw }} |
+| **Tiers / flag** | Low / Medium / High; **flagged = High tier** (score >= {{ T.tier_cutoffs.high_min | f4 }}) |
+| **Input** | {{ M.features.n_total | int }} pre-dispatch features ({{ M.features.n_categorical | int }} categorical, {{ M.features.n_numeric | int }} numeric) → {{ M.features.n_encoded | int }} encoded features after one-hot encoding |
+| **Output** | Calibrated probability + tier + flag + SHAP reasons |
+
+---
+
+## 3. Training Data
+
+| Property | Value |
+|---|---|
+| **Dataset** | DataCo Smart Supply Chain for Big Data Analysis |
+| **Citation** | Constante, F., Silva, F., & Pereira, A. (2019). Mendeley Data V5. DOI: [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5) |
+| **Licence** | CC BY 4.0 |
+| **Raw size** | {{ M.dataset.raw_rows | int }} rows × {{ M.dataset.raw_columns | int }} columns |
+| **Processed size** | {{ M.dataset.n_orders | int }} order-level rows × {{ M.dataset.n_parquet_columns | int }} columns |
+| **Date range** | {{ M.dataset.date_min | raw }} to {{ M.dataset.date_max | raw }} |
+| **Geography** | {{ M.dataset.n_countries | int }} countries; primarily North America, Europe, Latin America |
+| **Industry** | Multi-category retail supply chain (electronics, clothing, sports goods) |
+
+**Preprocessing:** duplicate Order IDs aggregated to order level (sum/mean/max); missing customer-history values imputed in the preprocessor (0 for cash share, median for days since previous order); post-dispatch columns dropped before feature engineering.
+
+---
+
+## 4. Features
+
+### Categorical
+`Type`, `Shipping_Mode`, `Market`, `Order_Region`, `Order_Country`, `Customer_Segment`, `Department_Name`, `main_item_category`.
+
+### Numeric
+`Days_for_shipment_scheduled`; `order_value`, `n_items`, `avg_discount_rate`, `value_per_item`; flags `is_cash`, `is_weekend`, `is_night_order`, `high_discount_flag`, `n_distinct_categories`; temporal `order_month`, `order_dow`, `order_hour`; leakage-safe history `customer_prev_orders`, `customer_prev_late_rate`, `country_prev_orders`, `country_prev_late_rate`, `customer_prev_cash_share`, `days_since_prev_order` (only orders whose outcome was already known before the current order date are counted).
+
+### Forbidden features (never used)
+`Days_for_shipping_real`, `Delivery Status`, `Order Status`, `shipping_date`, `Benefit per order`, `Order Profit Per Order`, `Order Item Profit Ratio`, `aux_target_cancel_fraud`, all PII columns.
+
+---
+
+## 5. Evaluation
+
+### Train / Validation / Test split (strictly chronological)
+
+{{ @splits }}
+
+### Model comparison (TEST, threshold = 0.5)
+
+{{ @model_comparison_test }}
+
+### Final model metrics (TEST)
+
+> **Metric conventions.** {{ @ranking_note }}
+
+{{ @final_metrics }}
+
+**Δ ROC-AUC vs. baseline, 95% CI:** {{ M.test.delta_roc_auc_ci | ci4 }}.
+
+**Multi-seed stability ({{ M.multi_seed.n_seeds | int }} seeds):** ROC-AUC {{ M.multi_seed.roc_auc_mean | f4 }} ± {{ M.multi_seed.roc_auc_std | f4 }}, PR-AUC {{ M.multi_seed.pr_auc_mean | f4 }} ± {{ M.multi_seed.pr_auc_std | f4 }}.
+
+**Label-shuffle sanity check:** {{ @label_shuffle }}
+
+### Per shipping mode (TEST)
+
+{{ @per_mode }}
+
+{{ @per_mode_note }}
+
+### Feature ablation (TEST)
+
+{{ @ablation }}
+
+{{ @ablation_verdict }}
+
+---
+
+## 6. Calibration (final tuned model)
+
+Isotonic regression was fitted on validation-set predictions of the final tuned model.
+
+{{ @calibration_table }}
+
+The validation ECE after calibration is ~0 by construction (the calibrator is fitted on that set); the test-set figure above is the honest one. Reliability curves: `outputs/calibration.png`.
+
+---
+
+## 7. Risk Tiers and Policies
+
+Cutoffs are **midpoints of low-density gaps** between calibrated-score clusters ({{ M.score_clusters.unique_scores_test | int }} distinct scores on test), chosen on validation scores only so that no cluster holding more than {{ T.cutoff_selection.rule.never_split_cluster_above_share | pct0 }} of validation orders is split between tiers, then verified on the test set.
+
+{{ @tier_table }}
+
+{{ @tier_descriptions }}
+
+### Policies (TEST)
+
+{{ @policy_table }}
+
+### Threshold stability (TEST, threshold ±0.01 / ±0.02)
+
+Maximum change in flagged share: {{ @stability_summary }}.
+
+{{ @stability_table }}
+
+---
+
+## 8. Top Features (SHAP, {{ M.shap.sample_n | int }}-row test sample)
+
+{{ @shap_top }}
+
+By business factor (one-hot columns grouped):
+
+{{ @shap_grouped }}
+
+Shipping mode and scheduled days together account for {{ M.shap.shipping_share | pct1 }} of total attribution. The order hour acts as a step function for Same Day shipments (late rate {{ M.same_day_noon_rule.late_rate_before_noon | pct1 }} before 12:00 vs {{ M.same_day_noon_rule.late_rate_from_noon | pct1 }} from 12:00).
+
+---
+
+## 9. Limitations and Verification Findings
+
+> [!WARNING]
+> **Proxy target** — `Late_delivery_risk` is a pre-computed flag in the dataset, not raw measured delivery outcomes. The model learns to replicate this rule-based flag.
+
+> [!CAUTION]
+> **TRANSFER is a labelling artifact.** All {{ M.verification.cancel_fraud_orders | int }} CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments ({{ M.verification.cancel_fraud_share_transfer | pct1 }} of TRANSFER orders vs {{ M.verification.cancel_fraud_share_other_types | pct1 }} of other types) and all carry `Late_delivery_risk = 0` (CANCELED {{ M.verification.late_rate_canceled | pct1 }}, SUSPECTED_FRAUD {{ M.verification.late_rate_suspected_fraud | pct1 }}, other statuses {{ M.verification.late_rate_other_statuses | pct1 }}). Controlling for shipping mode, the TRANSFER late rate differs from other payment types by {{ M.verification.transfer_gap_within_mode_all | pp1 }}; with cancel/fraud orders removed the difference is {{ M.verification.transfer_gap_within_mode_clean | pp1 }}. The final model's test ROC-AUC is {{ M.verification.test_roc_auc_all | f4 }} on all orders and {{ M.verification.test_roc_auc_without_cancel_fraud | f4 }} without them.
+
+> [!CAUTION]
+> **Near rule-based label** — the highest decile is dominated by First Class orders (below); precision in the top decile is {{ M.test.precision_at_top10pct | pct0 }}, an artefact of how the label was constructed rather than genuine courier insight.
+
+{{ @top_decile }}
+
+| Limitation | Detail |
+|---|---|
+| Public logistics data | DataCo is a simulated/anonymised academic dataset, not real D2C e-commerce transactions |
+| Geographic mismatch | Dataset is North America / LATAM centric; not validated on Indian last-mile logistics |
+| Not Indian D2C RTO | RTO in Indian e-commerce involves courier SLAs, PIN-code reachability, COD fraud — none captured here |
+| Standard Class discrimination | Standard Class ROC-AUC {{ M.per_mode[mode=Standard Class].roc_auc | f4 }} (95% CI {{ M.per_mode[mode=Standard Class].roc_auc_ci_lo | f4 }} to {{ M.per_mode[mode=Standard Class].roc_auc_ci_hi | f4 }}, signal {{ M.per_mode[mode=Standard Class].flag | raw }}) on {{ M.per_mode[mode=Standard Class].share | pct1 }} of orders |
+| Segment headroom | A segment-only model does not help (below) |
+| Clustered scores | {{ M.score_clusters.largest_standard_cluster_share_of_standard | pct1 }} of Standard Class orders share a single calibrated score, so ranking inside Standard Class is almost arbitrary |
+| No real-time features | Live courier tracking, weather, traffic data not incorporated |
+
+Segment-only LightGBM models (trained on one shipping mode, same features):
+
+{{ @verification_segment }}
+
+---
+
+## 10. Ethical Notes
+
+| Dimension | Detail |
+|---|---|
+| **PII** | No personally identifiable information used (names, emails, passwords, street addresses dropped in `01_prepare.py`) |
+| **Customer ID** | `Customer_Id` is used only internally for history aggregation; never passed as a model feature |
+| **Fairness** | No demographic or protected-class attributes are features; model is not evaluated for demographic parity |
+| **Transparency** | SHAP explanations provided for every prediction; plain-English reason codes via `get_reason_codes()` |
+| **Human oversight** | Model flags orders for human review; it does not autonomously cancel or reroute shipments |
+| **Auditability** | All thresholds, calibration parameters and metrics are saved in `models/` and `outputs/final_metrics.json`; reproducible via `run_all.py` |
+
+---
+
+## 11. Files
+
+| File | Description |
+|---|---|
+| `models/final_model.joblib` | Tuned LightGBM model |
+| `models/preprocessor.joblib` | Fitted ColumnTransformer (OHE + StandardScaler) |
+| `models/final_calibrator.joblib` | Fitted isotonic calibrator |
+| `models/thresholds.json` | Thresholds, tier cutoffs, tier descriptions, selection checks |
+| `outputs/final_metrics.json` | Every reported number (single source of truth) |
+| `outputs/report_tables.md` | All tables in paste-ready form (generated) |
+| `outputs/verification_findings.md` | Label-artifact and confound verification |
+
+---
+
+*Model Card follows the Google Model Cards framework (Mitchell et al., 2019).*

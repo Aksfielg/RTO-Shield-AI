@@ -1,9 +1,9 @@
 feature,psi,status
-Shipping_Mode_Standard Class,0.0,🟢 OK
-Days_for_shipment_scheduled,1e-05,🟢 OK
-Shipping_Mode_First Class,0.0,🟢 OK
-Type_TRANSFER,0.0,🟢 OK
-order_hour,7e-05,🟢 OK
-Shipping_Mode_Same Day,0.0,🟢 OK
-Shipping_Mode_Second Class,0.0,🟢 OK
-Type_DEBIT,0.0,🟢 OK
+Shipping_Mode_Standard Class,0.0,OK
+Days_for_shipment_scheduled,1e-05,OK
+Shipping_Mode_First Class,0.0,OK
+Type_TRANSFER,0.0,OK
+order_hour,7e-05,OK
+Shipping_Mode_Same Day,0.0,OK
+Shipping_Mode_Second Class,0.0,OK
+Type_DEBIT,0.0,OK

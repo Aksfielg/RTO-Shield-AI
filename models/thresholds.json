@@ -1,23 +1,402 @@
 {
   "best_model": "lightgbm_tuned",
-  "best_val_roc_auc": 0.7747,
-  "flag_definition": "High tier (score >= high_min)",
+  "winner_model": "tuned",
+  "flag_definition": "Flagged = High tier (score >= tier_cutoffs.high_min)",
   "thresholds": {
-    "flag_high_tier": 0.6988,
-    "precision_80": 0.3994,
+    "flag_high_tier": 0.7423,
+    "precision_80": 0.4657,
     "max_f1": 0.3538,
+    "final_tuned_max_f1": 0.3538,
+    "cost_1_1": 0.4946,
     "cost_2_1": 0.332,
-    "recall_80": 0.01,
-    "final_tuned_max_f1": 0.3538
+    "cost_3_1": 0.2419,
+    "cost_5_1": 0.01
   },
   "tier_cutoffs": {
-    "low_max": 0.3749,
-    "high_min": 0.6988,
-    "note": "Low: score < low_max | Medium: low_max <= score < high_min | High: score >= high_min | Cutoffs = p33 and p67 of calibrated validation scores from final tuned LightGBM"
+    "low_max": 0.4657,
+    "high_min": 0.7423,
+    "note": "Low: score < low_max | Medium: low_max <= score < high_min | High: score >= high_min. Cutoffs are midpoints of low-density gaps between calibrated-score clusters, selected on validation scores only."
+  },
+  "cutoff_selection": {
+    "rule": {
+      "cluster_link_gap": 0.01,
+      "density_window": 0.02,
+      "max_window_mass": 0.05,
+      "never_split_cluster_above_share": 0.02,
+      "min_tier_share_validation": 0.05,
+      "max_flag_swing_pp": 5.0
+    },
+    "candidates": [
+      0.1207,
+      0.2798,
+      0.4657,
+      0.5147,
+      0.5772,
+      0.6413,
+      0.6795,
+      0.7423,
+      0.8336,
+      0.873,
+      0.9512
+    ],
+    "checks": {
+      "tier low_max": {
+        "validation": {
+          "cutoff": 0.4657,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.4375,
+          "nearest_score_above": 0.4939759036144578,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        },
+        "test": {
+          "cutoff": 0.4657,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.4375,
+          "nearest_score_above": 0.4939759036144578,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        }
+      },
+      "tier high_min": {
+        "validation": {
+          "cutoff": 0.7423,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.6987951807228916,
+          "nearest_score_above": 0.7857142857142857,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        },
+        "test": {
+          "cutoff": 0.7423,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.6987951807228916,
+          "nearest_score_above": 0.7857142857142857,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        }
+      },
+      "precision_80": {
+        "validation": {
+          "cutoff": 0.4657,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.4375,
+          "nearest_score_above": 0.4939759036144578,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        },
+        "test": {
+          "cutoff": 0.4657,
+          "inside_cluster": false,
+          "big_clusters_split": 0,
+          "nearest_score_below": 0.4375,
+          "nearest_score_above": 0.4939759036144578,
+          "share_within_0.01": 0.0,
+          "share_within_0.02": 0.0,
+          "in_gap": true
+        }
+      }
+    }
+  },
+  "tier_stats_validation": {
+    "Low": {
+      "orders": 6044,
+      "share": 0.6127952955490216,
+      "late_orders": 2163,
+      "late_rate": 0.35787557908669754,
+      "late_captured": 0.4024186046511628,
+      "mean_score": 0.35787557908669754
+    },
+    "Medium": {
+      "orders": 600,
+      "share": 0.060833417824191424,
+      "late_orders": 382,
+      "late_rate": 0.6366666666666667,
+      "late_captured": 0.07106976744186047,
+      "mean_score": 0.6366666666666667
+    },
+    "High": {
+      "orders": 3219,
+      "share": 0.326371286626787,
+      "late_orders": 2830,
+      "late_rate": 0.8791550170860516,
+      "late_captured": 0.5265116279069767,
+      "mean_score": 0.8791550170860516
+    }
+  },
+  "tier_stats_test": {
+    "Low": {
+      "orders": 6104,
+      "share": 0.6188786373314408,
+      "late_orders": 2229,
+      "late_rate": 0.36517038007863695,
+      "late_captured": 0.41049723756906076,
+      "mean_score": 0.3628919805078944
+    },
+    "Medium": {
+      "orders": 554,
+      "share": 0.05616952245767008,
+      "late_orders": 369,
+      "late_rate": 0.6660649819494585,
+      "late_captured": 0.06795580110497237,
+      "mean_score": 0.6402453941860198
+    },
+    "High": {
+      "orders": 3205,
+      "share": 0.3249518402108892,
+      "late_orders": 2832,
+      "late_rate": 0.883619344773791,
+      "late_captured": 0.5215469613259669,
+      "mean_score": 0.8768989977904675
+    }
+  },
+  "tier_descriptions": {
+    "Low": {
+      "label": "Lower risk",
+      "description": "Lower risk: 37% of these orders were late in held-out test data (overall: 55%).",
+      "action": "Standard dispatch with routine monitoring."
+    },
+    "Medium": {
+      "label": "Elevated risk",
+      "description": "Elevated risk: 67% of these orders were late in held-out test data (overall: 55%).",
+      "action": "Monitor the carrier pickup SLA."
+    },
+    "High": {
+      "label": "Highest risk",
+      "description": "Highest risk: 88% of these orders were late in held-out test data (overall: 55%).",
+      "action": "Operational flag: review routing and confirm proactively."
+    }
+  },
+  "stability_test": [
+    {
+      "policy": "High tier",
+      "shift": -0.02,
+      "threshold": 0.7223,
+      "flagged_share_pct": 32.49518402108892,
+      "flagged_orders": 3205,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    {
+      "policy": "High tier",
+      "shift": -0.01,
+      "threshold": 0.7323,
+      "flagged_share_pct": 32.49518402108892,
+      "flagged_orders": 3205,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    {
+      "policy": "High tier",
+      "shift": 0.0,
+      "threshold": 0.7423,
+      "flagged_share_pct": 32.49518402108892,
+      "flagged_orders": 3205,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    {
+      "policy": "High tier",
+      "shift": 0.01,
+      "threshold": 0.7523,
+      "flagged_share_pct": 32.49518402108892,
+      "flagged_orders": 3205,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    {
+      "policy": "High tier",
+      "shift": 0.02,
+      "threshold": 0.7623,
+      "flagged_share_pct": 32.49518402108892,
+      "flagged_orders": 3205,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    {
+      "policy": "Precision>=0.80",
+      "shift": -0.02,
+      "threshold": 0.4457,
+      "flagged_share_pct": 38.11213626685593,
+      "flagged_orders": 3759,
+      "precision": 0.8515562649640862,
+      "recall": 0.5895027624309392,
+      "f1": 0.6967025791707476,
+      "accuracy": 0.7174287742066309,
+      "balanced_accuracy": 0.7318143182784067,
+      "specificity": 0.8741258741258742,
+      "mcc": 0.47487095578685373
+    },
+    {
+      "policy": "Precision>=0.80",
+      "shift": -0.01,
+      "threshold": 0.4557,
+      "flagged_share_pct": 38.11213626685593,
+      "flagged_orders": 3759,
+      "precision": 0.8515562649640862,
+      "recall": 0.5895027624309392,
+      "f1": 0.6967025791707476,
+      "accuracy": 0.7174287742066309,
+      "balanced_accuracy": 0.7318143182784067,
+      "specificity": 0.8741258741258742,
+      "mcc": 0.47487095578685373
+    },
+    {
+      "policy": "Precision>=0.80",
+      "shift": 0.0,
+      "threshold": 0.4657,
+      "flagged_share_pct": 38.11213626685593,
+      "flagged_orders": 3759,
+      "precision": 0.8515562649640862,
+      "recall": 0.5895027624309392,
+      "f1": 0.6967025791707476,
+      "accuracy": 0.7174287742066309,
+      "balanced_accuracy": 0.7318143182784067,
+      "specificity": 0.8741258741258742,
+      "mcc": 0.47487095578685373
+    },
+    {
+      "policy": "Precision>=0.80",
+      "shift": 0.01,
+      "threshold": 0.4757,
+      "flagged_share_pct": 38.11213626685593,
+      "flagged_orders": 3759,
+      "precision": 0.8515562649640862,
+      "recall": 0.5895027624309392,
+      "f1": 0.6967025791707476,
+      "accuracy": 0.7174287742066309,
+      "balanced_accuracy": 0.7318143182784067,
+      "specificity": 0.8741258741258742,
+      "mcc": 0.47487095578685373
+    },
+    {
+      "policy": "Precision>=0.80",
+      "shift": 0.02,
+      "threshold": 0.4857,
+      "flagged_share_pct": 38.11213626685593,
+      "flagged_orders": 3759,
+      "precision": 0.8515562649640862,
+      "recall": 0.5895027624309392,
+      "f1": 0.6967025791707476,
+      "accuracy": 0.7174287742066309,
+      "balanced_accuracy": 0.7318143182784067,
+      "specificity": 0.8741258741258742,
+      "mcc": 0.47487095578685373
+    },
+    {
+      "policy": "Max-F1",
+      "shift": -0.02,
+      "threshold": 0.3338,
+      "flagged_share_pct": 92.21332251850349,
+      "flagged_orders": 9095,
+      "precision": 0.5776800439802089,
+      "recall": 0.9675874769797421,
+      "f1": 0.7234423407917382,
+      "accuracy": 0.5927202676670384,
+      "balanced_accuracy": 0.5505656762295508,
+      "specificity": 0.13354387547935936,
+      "mcc": 0.1877381932314458
+    },
+    {
+      "policy": "Max-F1",
+      "shift": -0.01,
+      "threshold": 0.3438,
+      "flagged_share_pct": 92.01054445908953,
+      "flagged_orders": 9075,
+      "precision": 0.5781818181818181,
+      "recall": 0.9662983425414364,
+      "f1": 0.7234746639089968,
+      "accuracy": 0.5933286018452804,
+      "balanced_accuracy": 0.551387384670222,
+      "specificity": 0.13647642679900746,
+      "mcc": 0.18855969437820266
+    },
+    {
+      "policy": "Max-F1",
+      "shift": 0.0,
+      "threshold": 0.3538,
+      "flagged_share_pct": 89.77998580553584,
+      "flagged_orders": 8855,
+      "precision": 0.585544889892716,
+      "recall": 0.9548802946593001,
+      "f1": 0.7259362968148406,
+      "accuracy": 0.603061948697151,
+      "balanced_accuracy": 0.5634992495177845,
+      "specificity": 0.1721182043762689,
+      "mcc": 0.20855606295792642
+    },
+    {
+      "policy": "Max-F1",
+      "shift": 0.01,
+      "threshold": 0.3638,
+      "flagged_share_pct": 89.75970799959444,
+      "flagged_orders": 8853,
+      "precision": 0.58545125946007,
+      "recall": 0.95451197053407,
+      "f1": 0.7257578939998601,
+      "accuracy": 0.602859170637737,
+      "balanced_accuracy": 0.5633150874551694,
+      "specificity": 0.1721182043762689,
+      "mcc": 0.20776867405538996
+    },
+    {
+      "policy": "Max-F1",
+      "shift": 0.02,
+      "threshold": 0.3738,
+      "flagged_share_pct": 89.74956909662374,
+      "flagged_orders": 8852,
+      "precision": 0.5855173971983733,
+      "recall": 0.95451197053407,
+      "f1": 0.7258087102646688,
+      "accuracy": 0.602960559667444,
+      "balanced_accuracy": 0.5634278778905405,
+      "specificity": 0.17234378524701105,
+      "mcc": 0.20804758414383326
+    }
+  ],
+  "stability_swing_pp": {
+    "High tier": 0.0,
+    "Precision>=0.80": 0.0,
+    "Max-F1": 2.463753421879744
   },
   "cost_config": {
     "cost_FN": 2,
     "cost_FP": 1
   },
-  "winner_model": "tuned"
+  "base_rate_test": 0.5505424313089323
 }

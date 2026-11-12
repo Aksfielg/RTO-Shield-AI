@@ -31,12 +31,16 @@ LOG_FILE     = OUTPUTS_DIR / "run_log.txt"
 SCRIPTS = [
     "01_prepare.py",
     "02_train.py",
-    "03_calibrate_threshold.py",
+    "05_tune_multiseed.py",        # produces the FINAL model + calibrator
+    "03_calibrate_threshold.py",   # thresholds/tiers for the FINAL model
     "04_explain.py",
-    "05_tune_multiseed.py",
     "06_robustness.py",
     "07_predict_demo.py",
     "08_sanity_checks.py",
+    "09_verification.py",
+    "10_finalize.py",              # writes outputs/final_metrics.json
+    "11_experiments.py",           # read-only experiments -> outputs/experiments.md (never replaces the model)
+    "11_render_docs.py",           # README / MODEL_CARD / report_tables from JSON
 ]
 
 

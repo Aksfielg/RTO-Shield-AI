@@ -1,0 +1,165 @@
+{
+  "leakage": {
+    "ran": true,
+    "passed": true,
+    "detail": "6 passed in 16.48s",
+    "forbidden_feature_hits": []
+  },
+  "min_gain": 0.01,
+  "segment_specialists": {
+    "Standard Class": {
+      "val_gain": -0.0057959635477324856,
+      "test_delta": -0.0013445747004158237,
+      "test_delta_ci": [
+        -0.01131460203484472,
+        0.007458989439742816
+      ],
+      "adopt": false,
+      "global_test_auc": 0.5291560827233344,
+      "specialist_test_auc": 0.5278115080229185
+    },
+    "Second Class": {
+      "val_gain": -0.010493566913533647,
+      "test_delta": -0.0042806498181752195,
+      "test_delta_ci": [
+        -0.02069565930212437,
+        0.013254315930464104
+      ],
+      "adopt": false,
+      "global_test_auc": 0.5665990534144693,
+      "specialist_test_auc": 0.562318403596294
+    }
+  },
+  "alternative_target": {
+    "test_auc": 0.7801908903271735,
+    "test_auc_ci": [
+      0.7712382161118616,
+      0.7888727153201623
+    ],
+    "global_model_on_alt": 0.7531525261120907,
+    "cancel_fraud_part_auc": 0.6597176929685917,
+    "late_part_auc": 0.7464600212951666,
+    "val_auc": 0.787905901247727,
+    "drivers": [
+      {
+        "factor": "Shipping mode",
+        "share": 0.5913511943383744
+      },
+      {
+        "factor": "Scheduled shipping days",
+        "share": 0.19879711162573374
+      },
+      {
+        "factor": "Hour of day",
+        "share": 0.0886030448439534
+      },
+      {
+        "factor": "Payment type",
+        "share": 0.07576768684114174
+      },
+      {
+        "factor": "Value per item",
+        "share": 0.009999074661760268
+      },
+      {
+        "factor": "Night-time order",
+        "share": 0.007845525218307167
+      },
+      {
+        "factor": "Order value",
+        "share": 0.00557577976347529
+      },
+      {
+        "factor": "Average discount rate",
+        "share": 0.00538673892144312
+      }
+    ],
+    "global_drivers": [
+      {
+        "factor": "Shipping mode",
+        "share": 0.5439427894996072
+      },
+      {
+        "factor": "Scheduled shipping days",
+        "share": 0.19226758641495734
+      },
+      {
+        "factor": "Payment type",
+        "share": 0.12815711852530756
+      },
+      {
+        "factor": "Hour of day",
+        "share": 0.08611966218760397
+      },
+      {
+        "factor": "Value per item",
+        "share": 0.010374603239513868
+      },
+      {
+        "factor": "Order value",
+        "share": 0.008649890808554737
+      },
+      {
+        "factor": "Night-time order",
+        "share": 0.008039212857470548
+      },
+      {
+        "factor": "Country historical late rate",
+        "share": 0.004135085480582595
+      }
+    ],
+    "payment_share_alt": 0.07576768684114174,
+    "payment_share_global": 0.12815711852530756,
+    "prevalence": {
+      "late": 0.5505424313089323,
+      "alt": 0.5937341579641083,
+      "cancel_fraud": 0.04319172665517591
+    }
+  },
+  "cleaned_task": {
+    "val_gain": 0.002875105538548084,
+    "test_delta": -0.0008680251548740525,
+    "test_delta_ci": [
+      -0.0067466725551974,
+      0.005297045938445468
+    ],
+    "adopt": false,
+    "payment_share_cleaned": 0.0008498964070386529,
+    "payment_share_global": 0.12815711852530756,
+    "drivers": [
+      {
+        "factor": "Shipping mode",
+        "share": 0.647752716663253
+      },
+      {
+        "factor": "Scheduled shipping days",
+        "share": 0.15363820168834705
+      },
+      {
+        "factor": "Hour of day",
+        "share": 0.11030830589150874
+      },
+      {
+        "factor": "Value per item",
+        "share": 0.014709820339618047
+      },
+      {
+        "factor": "Order value",
+        "share": 0.011992370295927472
+      },
+      {
+        "factor": "Average discount rate",
+        "share": 0.01100010284274632
+      },
+      {
+        "factor": "Number of items",
+        "share": 0.01009672762071361
+      },
+      {
+        "factor": "Country",
+        "share": 0.007387821468015438
+      }
+    ],
+    "cancel_fraud_removed_share_test": 0.04319172665517591
+  }
+}

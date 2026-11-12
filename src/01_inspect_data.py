@@ -57,7 +57,7 @@ FORBIDDEN_FEATURES = [
 REQUIRED_COLUMNS = [
     # Target
     "Late_delivery_risk",
-    # COD proxy
+    # CASH payment type (NOT a validated COD indicator)
     "Type",
     # Date column for chronological split
     "order date (DateOrders)",
@@ -193,12 +193,12 @@ def inspect(df: pd.DataFrame) -> None:
     else:
         print("  [WARN] 'Late_delivery_risk' column NOT FOUND.")
 
-    # -- COD proxy -----------------------------------------------------------
-    print_section("6. COD Proxy: Type == 'CASH'")
+    # -- CASH payment type ---------------------------------------------------
+    print_section("6. Cash payment type: Type == 'CASH' (not verified as COD)")
     if "Type" in df.columns:
         vc = df["Type"].value_counts(dropna=False)
         for val, cnt in vc.items():
-            marker = "  ← COD proxy" if val == "CASH" else ""
+            marker = "  ← cash payment type" if val == "CASH" else ""
             print(f"  {str(val):<20}  {cnt:,} rows{marker}")
     else:
         print("  [WARN] 'Type' column NOT FOUND.")

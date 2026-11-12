@@ -1,4 +1,4 @@
-# ── Environment & Caches ────────────────────────────────────────
+# ── Environment & caches ────────────────────────────────────────
 venv/
 __pycache__/
 *.pyc
@@ -7,11 +7,29 @@ __pycache__/
 .pytest_cache/
 scratch/
 
-# ── Large Files (>100MB rejected by GitHub) ────────────────────
+# ── Large files (>100MB rejected by GitHub) ────────────────────
 # Raw dataset is 96MB; external link provided in README & MODEL_CARD
 data/raw/DataCoSupplyChainDataset.csv
 # Random forest artifact is 566MB (exceeds GitHub 100MB limit)
 models/random_forest.joblib
+
+# ── Model artefacts ────────────────────────────────────────────
+# Only the serving artefacts the dashboard / predict.py need are tracked.
+# Everything else is a regenerable pipeline intermediate (python run_all.py).
+models/*.joblib
+!models/final_model.joblib
+!models/final_calibrator.joblib
+!models/preprocessor.joblib
+*.pkl
+
+# ── Local / personal Streamlit state ───────────────────────────
+.streamlit/credentials.toml
+.streamlit/secrets.toml
+
+# ── Secrets (never commit) ─────────────────────────────────────
+.env
+*.pem
+*.key
 
 # ── Notebooks ──────────────────────────────────────────────────
 .ipynb_checkpoints/

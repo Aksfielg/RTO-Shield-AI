@@ -20,12 +20,15 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    balanced_accuracy_score,
+    brier_score_loss,
+    f1_score,
+    matthews_corrcoef,
     precision_score,
     recall_score,
-    f1_score,
     roc_auc_score,
-    average_precision_score,
-    brier_score_loss,
 )
 
 from config import (
@@ -198,6 +201,7 @@ def compute_metrics(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     threshold: float = 0.5,
+    y_rank: np.ndarray | None = None,
 ) -> dict[str, float]:
     """
     Compute a full evaluation metric bundle for binary classification.
@@ -205,29 +209,43 @@ def compute_metrics(
     Parameters
     ----------
     y_true    : 1-D array of true 0/1 labels.
-    y_prob    : 1-D array of predicted positive-class probabilities.
+    y_prob    : 1-D array of predicted positive-class probabilities.  Used for
+                DECISION and CALIBRATION outputs (threshold metrics, Brier, ECE).
     threshold : decision threshold applied to y_prob (default 0.5).
+    y_rank    : optional scores used for RANKING metrics (ROC-AUC, PR-AUC,
+                precision@top10%).  Pass the RAW (uncalibrated) model scores:
+                isotonic calibration collapses scores into ties, which distorts
+                rankings.  Defaults to y_prob.
 
     Returns
     -------
     dict with keys:
-        threshold, precision, recall, f1,
-        roc_auc, pr_auc, brier,
-        precision_at_top10pct, ece
+        threshold, precision, recall, f1, accuracy, balanced_accuracy,
+        specificity, mcc, roc_auc, pr_auc, brier, precision_at_top10pct, ece
     """
     y_true = np.asarray(y_true)
     y_prob = np.asarray(y_prob)
+    rank = y_prob if y_rank is None else np.asarray(y_rank)
     y_pred = (y_prob >= threshold).astype(int)
+
+    tn = int(((y_pred == 0) & (y_true == 0)).sum())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+    specificity = tn / (tn + fp) if (tn + fp) else 0.0
+    mcc = float(matthews_corrcoef(y_true, y_pred)) if len(np.unique(y_pred)) > 1 else 0.0
 
     return {
         "threshold"            : round(threshold, 4),
         "precision"            : round(precision_score(y_true, y_pred, zero_division=0), 4),
         "recall"               : round(recall_score(y_true, y_pred, zero_division=0), 4),
         "f1"                   : round(f1_score(y_true, y_pred, zero_division=0), 4),
-        "roc_auc"              : round(roc_auc_score(y_true, y_prob), 4),
-        "pr_auc"               : round(average_precision_score(y_true, y_prob), 4),
+        "accuracy"             : round(accuracy_score(y_true, y_pred), 4),
+        "balanced_accuracy"    : round(balanced_accuracy_score(y_true, y_pred), 4),
+        "specificity"          : round(specificity, 4),
+        "mcc"                  : round(mcc, 4),
+        "roc_auc"              : round(roc_auc_score(y_true, rank), 4),
+        "pr_auc"               : round(average_precision_score(y_true, rank), 4),
         "brier"                : round(brier_score_loss(y_true, y_prob), 4),
-        "precision_at_top10pct": round(precision_at_k(y_true, y_prob, k=0.10), 4),
+        "precision_at_top10pct": round(precision_at_k(y_true, rank, k=0.10), 4),
         "ece"                  : round(expected_calibration_error(y_true, y_prob), 4),
     }
 

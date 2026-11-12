@@ -269,12 +269,13 @@ def evaluate_final(
 
     cal_val = _calibrated_proba(model, ir, X_val)
     cal_te  = _calibrated_proba(model, ir, X_te)
+    raw_te  = model.predict_proba(X_te)[:, 1]   # ranking metrics use RAW scores
 
     threshold, val_f1 = _select_threshold_max_f1(y_val, cal_val)
     print(f"\n  Threshold (max-F1 on val calibrated proba) : {threshold:.4f}  "
           f"(val F1={val_f1:.4f})")
 
-    metrics = compute_metrics(y_te, cal_te, threshold=threshold)
+    metrics = compute_metrics(y_te, cal_te, threshold=threshold, y_rank=raw_te)
     return threshold, metrics, ir, cal_te
 
 
@@ -332,9 +333,10 @@ def multi_seed_train(
         ir_s      = _calibrate(m, X_val, y_val)
         cal_val_s = _calibrated_proba(m, ir_s, X_val)
         cal_te_s  = _calibrated_proba(m, ir_s, X_te)
+        raw_te_s  = m.predict_proba(X_te)[:, 1]
 
         thr_s, _ = _select_threshold_max_f1(y_val, cal_val_s)
-        mets_s   = compute_metrics(y_te, cal_te_s, threshold=thr_s)
+        mets_s   = compute_metrics(y_te, cal_te_s, threshold=thr_s, y_rank=raw_te_s)
 
         row = {"seed": seed, "threshold": thr_s}
         row.update({k: mets_s[k] for k in metric_keys})
@@ -606,7 +608,10 @@ def main() -> None:
     ir_base    = _calibrate(baseline_model, X_val_b, y_val)
     cal_te_b   = _calibrated_proba(baseline_model, ir_base, X_te_b)
 
-    cis = compute_bootstrap_cis(y_te, cal_te, cal_te_b, n_boot=N_BOOTSTRAP)
+    # Ranking CIs use RAW scores (final model and baseline LR probabilities)
+    raw_te_final = winner_model.predict_proba(X_te)[:, 1]
+    raw_te_base  = baseline_model.predict_proba(X_te_b)[:, 1]
+    cis = compute_bootstrap_cis(y_te, raw_te_final, raw_te_base, n_boot=N_BOOTSTRAP)
 
     print(f"\n  {'='*74}")
     print(f"  Bootstrap 95% Confidence Intervals (TEST set)")
@@ -626,48 +631,8 @@ def main() -> None:
     print(f"  Final model saved → {MODELS_DIR}/final_model.joblib")
     print(f"  Final calibrator saved → {MODELS_DIR}/final_calibrator.joblib & calibrator.joblib")
 
-    # Compute validation percentiles and thresholds using the final model + calibrator
-    cal_val_final = _calibrated_proba(winner_model, ir, X_val)
-    p33 = float(np.percentile(cal_val_final, 33.333))
-    p67 = float(np.percentile(cal_val_final, 66.667))
-
-    # Precision >= 0.80 threshold
-    thrs_search = np.linspace(0.01, 0.99, 990)
-    prec80_thr = float(p67)
-    for t_cand in thrs_search:
-        yp_cand = (cal_val_final >= t_cand).astype(int)
-        tp_cand = int(((yp_cand == 1) & (y_val == 1)).sum())
-        fp_cand = int(((yp_cand == 1) & (y_val == 0)).sum())
-        prec_cand = tp_cand / (tp_cand + fp_cand) if (tp_cand + fp_cand) > 0 else 0.0
-        if prec_cand >= 0.80:
-            prec80_thr = float(t_cand)
-            break
-
-    thr_json_path = MODELS_DIR / "thresholds.json"
-    thr_data = {
-        "best_model": "lightgbm_tuned",
-        "best_val_roc_auc": round(float(roc_tuned), 4),
-        "flag_definition": "High tier (score >= high_min)",
-        "thresholds": {
-            "flag_high_tier": round(p67, 4),
-            "precision_80": round(prec80_thr, 4),
-            "max_f1": round(threshold, 4),
-            "final_tuned_max_f1": round(threshold, 4),
-            "recall_80": 0.01,
-        },
-        "tier_cutoffs": {
-            "low_max": round(p33, 4),
-            "high_min": round(p67, 4),
-            "note": "Low: score < low_max | Medium: low_max <= score < high_min | High: score >= high_min | Cutoffs = p33 and p67 of calibrated validation scores from final tuned LightGBM"
-        },
-        "cost_config": {
-            "cost_FN": 2,
-            "cost_FP": 1
-        },
-        "winner_model": winner_label,
-    }
-    thr_json_path.write_text(json.dumps(thr_data, indent=2))
-    print(f"  Thresholds.json updated → {thr_json_path}")
+    # NOTE: thresholds.json is written by 03_calibrate_threshold.py, which runs
+    # AFTER this script and uses final_model.joblib / final_calibrator.joblib.
 
     print("\n" + "=" * 74)
     print("  Tuning & stability analysis complete.")

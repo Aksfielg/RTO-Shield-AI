@@ -48,8 +48,8 @@ TARGET_COL    = "Late_delivery_risk"   # 1 = late / at-risk, 0 = on-time
 DATE_COL      = "order_date"           # column name in orders.parquet
 DATE_COL_RAW  = "order date (DateOrders)"  # column name in raw CSV
 ORDER_ID_COL  = "Order Id"
-PAYMENT_COL   = "Type"                 # COD proxy: Type == "CASH"
-COD_VALUE     = "CASH"
+PAYMENT_COL   = "Type"                 # payment type; "CASH" is NOT verified as cash-on-delivery in DataCo
+COD_VALUE     = "CASH"                # legacy name: the CASH payment type only (not a validated COD indicator)
 
 # ---------------------------------------------------------------------------
 # Columns that must NEVER be used as model features

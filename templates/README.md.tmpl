@@ -1,0 +1,212 @@
+# RTO Shield AI — Model 1
+
+> **Early-warning late-delivery risk scoring at order-placement time.**
+
+<!-- GENERATED FILE: edit templates/README.md.tmpl, then run `python src/11_render_docs.py`. -->
+
+---
+
+## Goal
+
+RTO Shield AI - Model 1 is an academic prototype evaluating whether pre-dispatch order features correlate with **late-delivery risk** (`Late_delivery_risk = 1`) at order placement time, before shipment dispatch.
+
+> **Important Distinction:** The target is `Late_delivery_risk` (delivery delay), which is an upstream operational proxy. It is **NOT** a direct measure of Return-To-Origin (RTO), doorstep refusal, or COD cash default. In actual e-commerce operations, late delivery can increase RTO risk, but this model predicts delivery delay rather than return events. **No result in this repository measures RTO, doorstep-refusal or Indian COD performance.**
+
+---
+
+## Dataset
+
+**DataCo Smart Supply Chain for Big Data Analysis**
+
+> Constante, F., Silva, F., & Pereira, A. (2019). *DataCo Smart Supply Chain for Big Data Analysis* [Data set]. Mendeley Data, V5.
+> DOI: [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5)
+> Licence: **CC BY 4.0**
+
+| Property | Value |
+|---|---|
+| Raw rows | {{ M.dataset.raw_rows | int }} |
+| Processed orders | {{ M.dataset.n_orders | int }} |
+| Date range | {{ M.dataset.date_min | raw }} to {{ M.dataset.date_max | raw }} |
+| Countries | {{ M.dataset.n_countries | int }} |
+| Positive rate (Late_delivery_risk = 1) | {{ M.dataset.positive_rate | pct1 }} |
+| Raw file SHA-256 | `{{ M.dataset.sha256 | raw }}` |
+
+{{ @splits }}
+
+---
+
+## ⚠️ Critical Proxy-Target & Scope Caveats
+
+1. **Near rule-based labelling.** `Late_delivery_risk` is a pre-computed label in the DataCo dataset that heavily reflects near rule-based dispatch logic rather than real courier variance. For Same Day orders, the order hour alone separates outcomes: orders placed before 12:00 are late {{ M.same_day_noon_rule.late_rate_before_noon | pct1 }} of the time, orders from 12:00 onward {{ M.same_day_noon_rule.late_rate_from_noon | pct1 }} ({{ M.same_day_noon_rule.orders | int }} Same Day orders).
+2. **Standard Class has almost no signal.** Standard Class is {{ M.per_mode[mode=Standard Class].share | pct1 }} of test orders, and the model's ROC-AUC there is **{{ M.per_mode[mode=Standard Class].roc_auc | f4 }}** (95% CI {{ M.per_mode[mode=Standard Class].roc_auc_ci_lo | f4 }} to {{ M.per_mode[mode=Standard Class].roc_auc_ci_hi | f4 }}; signal: **{{ M.per_mode[mode=Standard Class].flag | raw }}**). The aggregate test ROC-AUC ({{ M.test.roc_auc | f4 }}) is driven by First Class ({{ M.per_mode[mode=First Class].roc_auc | f4 }}) and Same Day ({{ M.per_mode[mode=Same Day].roc_auc | f4 }}). A model trained on Standard Class alone reaches only {{ M.verification.segment_models.Standard Class.segment_model_roc_auc | f4 }}.
+3. **The payment-type (TRANSFER) effect is a labelling artifact.** All {{ M.verification.cancel_fraud_orders | int }} CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments and every one of them carries `Late_delivery_risk = 0`. Within each shipping mode the TRANSFER late rate differs from other payment types by {{ M.verification.transfer_gap_within_mode_all | pp1 }}; with those orders removed the difference is {{ M.verification.transfer_gap_within_mode_clean | pp1 }}. Do not read TRANSFER as lower payment risk.
+4. **Not validated on Indian D2C.** This dataset represents global supply chain orders (predominantly North America and LATAM). It does not capture Indian D2C last-mile dynamics (NDR verification, fake door attempts, PIN-code delivery tiers, or COD payment fraud). Do not deploy without retraining on actual courier and return telemetry.
+5. **Scores are clustered.** The calibrated score takes only {{ M.score_clusters.unique_scores_test | int }} distinct values on the test set; {{ M.score_clusters.largest_standard_cluster_share_of_standard | pct1 }} of Standard Class orders share one score. Cutoffs are therefore placed in low-density gaps between clusters (see Risk tiers).
+
+---
+
+## Setup
+
+```bash
+# 1. Clone / download the repo
+# 2. Place DataCoSupplyChainDataset.csv in data/raw/
+
+# 3. Create and activate virtual environment
+python -m venv venv
+venv\Scripts\activate          # Windows PowerShell
+# source venv/bin/activate     # macOS / Linux
+
+# 4. Install dependencies
+pip install -r requirements.txt
+```
+
+**Python:** 3.11+ recommended (tested on 3.13)
+**Key packages:** pandas, numpy, scikit-learn, xgboost, lightgbm, shap, joblib, matplotlib, scipy, pyarrow, pytest, streamlit, plotly
+
+---
+
+## How to Run
+
+### Full pipeline (recommended)
+
+```bash
+python run_all.py
+```
+
+Runs all scripts in dependency order and logs to `outputs/run_log.txt`. Order: `01 → 02 → 05 → 03 → 04 → 06 → 07 → 08 → 09 → 10 → 11` (the tuned model from step 05 must exist before tiers and thresholds are set in step 03).
+Full pipeline takes roughly 30–60 minutes (dominated by SHAP and multi-seed tuning).
+
+### Individual scripts
+
+```bash
+venv\Scripts\python.exe src/01_prepare.py              # Wrangle & feature-engineer
+venv\Scripts\python.exe src/02_train.py                # Train 5 models, compare metrics
+venv\Scripts\python.exe src/05_tune_multiseed.py       # Tune final LightGBM, calibrate, stability
+venv\Scripts\python.exe src/03_calibrate_threshold.py  # Cluster-aware tiers + thresholds (final model)
+venv\Scripts\python.exe src/04_explain.py              # SHAP explanations
+venv\Scripts\python.exe src/06_robustness.py           # Ablations, backtest, PSI
+venv\Scripts\python.exe src/07_predict_demo.py         # Predict demo (5 orders)
+venv\Scripts\python.exe src/08_sanity_checks.py        # Sanity checks suite & provenance
+venv\Scripts\python.exe src/09_verification.py         # Label-artifact / confound verification
+venv\Scripts\python.exe src/10_finalize.py             # Compute every reported number -> outputs/final_metrics.json
+venv\Scripts\python.exe src/11_render_docs.py          # Render README, MODEL_CARD, report_tables from JSON
+```
+
+### Single source of truth
+
+`outputs/final_metrics.json` (all metrics) and `models/thresholds.json` (cutoffs and tier text) feed the Streamlit app, `README.md`, `MODEL_CARD.md` and `outputs/report_tables.md`. Those documents are rendered from `templates/` and contain no hand-typed metrics.
+
+### Streamlit Dashboard
+
+```bash
+streamlit run app.py
+```
+
+Nine pages in three groups (Overview, Decisioning & Operations, Model Evaluation & Governance). Every number comes from
+`outputs/final_metrics.json`, `models/thresholds.json` or the real holdout orders; all charts are Plotly; there is no
+invented data (the "Score an Order" presets are real holdout orders, one per risk tier).
+
+### CLI prediction
+
+```bash
+venv\Scripts\python.exe src/predict.py --json sample_order.json
+```
+
+### Tests
+
+```bash
+venv\Scripts\pytest.exe tests/ -v -s
+```
+
+---
+
+## Results
+
+### Model Comparison (threshold = 0.5, validation and test)
+
+{{ @model_comparison_short }}
+
+### Final Model: tuned LightGBM + isotonic calibration
+
+> **Metric conventions.** {{ @ranking_note }}
+
+{{ @final_metrics }}
+
+**Multi-seed stability ({{ M.multi_seed.n_seeds | int }} seeds):** ROC-AUC {{ M.multi_seed.roc_auc_mean | f4 }} ± {{ M.multi_seed.roc_auc_std | f4 }}, PR-AUC {{ M.multi_seed.pr_auc_mean | f4 }} ± {{ M.multi_seed.pr_auc_std | f4 }}
+
+**Δ ROC-AUC vs baseline (bootstrap 95% CI):** {{ M.test.delta_roc_auc_ci | ci4 }}
+
+**Calibration (final model, test):**
+
+{{ @calibration_table }}
+
+### Per-shipping-mode performance (test)
+
+{{ @per_mode }}
+
+{{ @per_mode_note }}
+
+### Feature ablation (test)
+
+{{ @ablation }}
+
+{{ @ablation_verdict }}
+
+### Risk tiers
+
+Tier cutoffs ({{ T.tier_cutoffs.low_max | f4 }} and {{ T.tier_cutoffs.high_min | f4 }}) are midpoints of low-density gaps between calibrated-score clusters, selected on validation scores only and verified on test. **Flagged = High tier.**
+
+{{ @tier_table }}
+
+{{ @tier_descriptions }}
+
+### Policies on the test set
+
+{{ @policy_table }}
+
+### Threshold stability (test)
+
+Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most: {{ @stability_summary }}.
+
+{{ @stability_table }}
+
+---
+
+## Folder Structure
+
+```
+rto_shield_model1/
+├── app.py                        # Streamlit entry point: page config, grouped navigation, sidebar chrome
+├── ui/                           # dashboard package (no numbers typed in UI code)
+│   ├── theme.py                  # palette, CSS, shared Plotly template
+│   ├── components.py             # kpi_card, risk_badge, callout, styled_table, fmt_pct, fmt_money, plain_sentence
+│   ├── charts.py                 # every chart (Plotly)
+│   ├── data.py                   # cached loaders (st.cache_resource / st.cache_data), background model warm-up
+│   └── pages/                    # home, score_order, real_orders, impact, batch,
+│                                 # performance, explainability, robustness, limitations
+├── .streamlit/config.toml        # light theme, indigo primary #4F46E5, sans-serif
+├── data/
+│   ├── raw/                      # DataCoSupplyChainDataset.csv (not committed)
+│   └── processed/orders.parquet  # order-level feature table
+├── src/
+│   ├── config.py                 # Paths, feature lists, constants
+│   ├── features.py               # Feature matrix builder
+│   ├── tiering.py                # Cluster-aware cutoff selection + stability checks
+│   ├── reasons.py                # Plain-English SHAP reason codes
+│   ├── predict.py                # score_order() / score_batch() + CLI
+│   └── 01_prepare.py … 11_render_docs.py
+├── templates/                    # README / MODEL_CARD templates (no hand-typed numbers)
+├── models/                       # Saved models + thresholds.json
+├── outputs/                      # final_metrics.json, CSVs, PNGs, report_tables.md
+├── tests/
+├── run_all.py
+├── sample_order.json
+├── README.md                     # generated
+└── MODEL_CARD.md                 # generated
+```
+
+---
+
+## Licence
+
+Code: MIT. Dataset: CC BY 4.0 (cite Constante et al. 2019).
