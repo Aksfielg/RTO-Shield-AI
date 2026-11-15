@@ -17,7 +17,7 @@
       0.08965658696760351
     ]
   },
-  "threshold": 0.3538,
+  "threshold": 0.35384226491405457,
   "winner": "tuned",
   "best_cv_roc": 0.77466,
   "best_params": {

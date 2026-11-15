@@ -1,156 +1,525 @@
 # RTO Shield AI — Model 1
 
-> **Early-warning late-delivery risk scoring at order-placement time.**
+> **An explainable early-warning system that scores every order for late-delivery risk *before it ships* — with a full interactive dashboard to try it, audit it and stress-test it.**
 
 <!-- GENERATED FILE: edit templates/README.md.tmpl, then run `python src/11_render_docs.py`. -->
 
----
-
-## Goal
-
-RTO Shield AI - Model 1 is an academic prototype evaluating whether pre-dispatch order features correlate with **late-delivery risk** (`Late_delivery_risk = 1`) at order placement time, before shipment dispatch.
-
-> **Important Distinction:** The target is `Late_delivery_risk` (delivery delay), which is an upstream operational proxy. It is **NOT** a direct measure of Return-To-Origin (RTO), doorstep refusal, or COD cash default. In actual e-commerce operations, late delivery can increase RTO risk, but this model predicts delivery delay rather than return events. **No result in this repository measures RTO, doorstep-refusal or Indian COD performance.**
+If you have never seen this project before, read the next section, then jump to [Quick start](#4-quick-start-run-the-dashboard-in-5-minutes). You do not need the raw dataset, a GPU or any prior knowledge to open the dashboard.
 
 ---
 
-## Dataset
+## Table of contents
 
-**DataCo Smart Supply Chain for Big Data Analysis**
+1. [The project in plain words](#1-the-project-in-plain-words)
+2. [What problem does it solve, and how?](#2-what-problem-does-it-solve-and-how)
+3. [Results at a glance](#3-results-at-a-glance)
+4. [Quick start: run the dashboard in 5 minutes](#4-quick-start-run-the-dashboard-in-5-minutes)
+5. [Dashboard guide: every page explained](#5-dashboard-guide-every-page-explained)
+6. [A 10-minute first-time walkthrough](#6-a-10-minute-first-time-walkthrough)
+7. [Key terms (mini glossary)](#7-key-terms-mini-glossary)
+8. [The data](#8-the-data)
+9. [The features the model uses](#9-the-features-the-model-uses)
+10. [How the model is trained](#10-how-the-model-is-trained)
+11. [The pipeline, step by step](#11-the-pipeline-step-by-step)
+12. [Detailed results](#12-detailed-results)
+13. [Honest limitations: read before you trust a number](#13-honest-limitations-read-before-you-trust-a-number)
+14. [Tech stack](#14-tech-stack)
+15. [Using the model without the dashboard](#15-using-the-model-without-the-dashboard)
+16. [Rebuild everything from scratch](#16-rebuild-everything-from-scratch)
+17. [Tests](#17-tests)
+18. [Troubleshooting](#18-troubleshooting)
+19. [Project structure](#19-project-structure)
+20. [Other documents, licence and citation](#20-other-documents-licence-and-citation)
 
-> Constante, F., Silva, F., & Pereira, A. (2019). *DataCo Smart Supply Chain for Big Data Analysis* [Data set]. Mendeley Data, V5.
-> DOI: [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5)
-> Licence: **CC BY 4.0**
+---
 
-| Property | Value |
+## 1. The project in plain words
+
+**What is it?** Imagine an online store that ships thousands of orders a day. Some of them arrive late. A late order means an unhappy customer, a refund request, a support call, and sometimes a parcel that is sent back. The store would love to know *which orders are likely to be late at the moment the order is placed*, so it can act early: confirm the address, upgrade the dispatch, warn the customer, or simply keep an eye on it.
+
+**RTO Shield AI – Model 1** is a machine-learning prototype that does exactly that:
+
+1. It looks only at information available **before dispatch** (shipping mode, payment type, order value, time of order, destination, customer history, and so on).
+2. It outputs a **risk score** between 0% and 100% — the estimated chance that the order will be delivered late.
+3. It puts the order into one of three **risk tiers** (Low / Medium / High) and **flags** the High tier for attention.
+4. It explains **why**, in plain English ("Shipping mode: Second Class raises risk").
+5. Around the model there is a **Streamlit dashboard** with ten pages: score a single order, browse real unseen orders, simulate the money impact, score a whole CSV file, inspect model quality, read the explanations, and see exactly where the model is weak.
+
+**What is it *not*?** This is an academic prototype built on a **public** dataset (DataCo Smart Supply Chain). The thing it predicts is `Late_delivery_risk` — whether a delivery was late. It does **not** predict Return-To-Origin (RTO), doorstep refusal, or Cash-on-Delivery default, and **no number in this repository measures RTO or Indian COD performance**. The name "RTO Shield" describes the long-term goal (a later model on real courier data); the model in this repository is the first, proof-of-concept step. A banner on every dashboard page repeats this so nobody misreads the numbers.
+
+**Who is it for?**
+
+| If you are… | Start here |
 |---|---|
-| Raw rows | {{ M.dataset.raw_rows | int }} |
-| Processed orders | {{ M.dataset.n_orders | int }} |
-| Date range | {{ M.dataset.date_min | raw }} to {{ M.dataset.date_max | raw }} |
-| Countries | {{ M.dataset.n_countries | int }} |
-| Positive rate (Late_delivery_risk = 1) | {{ M.dataset.positive_rate | pct1 }} |
-| Raw file SHA-256 | `{{ M.dataset.sha256 | raw }}` |
-
-{{ @splits }}
+| A reviewer / examiner / curious newcomer | [Quick start](#4-quick-start-run-the-dashboard-in-5-minutes) → [10-minute walkthrough](#6-a-10-minute-first-time-walkthrough) → [Limitations](#13-honest-limitations-read-before-you-trust-a-number) |
+| A data scientist wanting the method | [How the model is trained](#10-how-the-model-is-trained) → [Pipeline](#11-the-pipeline-step-by-step) → `MODEL_CARD.md` |
+| A developer wanting to call the model | [Using the model without the dashboard](#15-using-the-model-without-the-dashboard) |
+| Presenting the project | `docs/VIVA_CHEATSHEET.md` (numbers, demo script, examiner Q&A) |
 
 ---
 
-## ⚠️ Critical Proxy-Target & Scope Caveats
+## 2. What problem does it solve, and how?
 
-1. **Near rule-based labelling.** `Late_delivery_risk` is a pre-computed label in the DataCo dataset that heavily reflects near rule-based dispatch logic rather than real courier variance. For Same Day orders, the order hour alone separates outcomes: orders placed before 12:00 are late {{ M.same_day_noon_rule.late_rate_before_noon | pct1 }} of the time, orders from 12:00 onward {{ M.same_day_noon_rule.late_rate_from_noon | pct1 }} ({{ M.same_day_noon_rule.orders | int }} Same Day orders).
-2. **Standard Class has almost no signal.** Standard Class is {{ M.per_mode[mode=Standard Class].share | pct1 }} of test orders, and the model's ROC-AUC there is **{{ M.per_mode[mode=Standard Class].roc_auc | f4 }}** (95% CI {{ M.per_mode[mode=Standard Class].roc_auc_ci_lo | f4 }} to {{ M.per_mode[mode=Standard Class].roc_auc_ci_hi | f4 }}; signal: **{{ M.per_mode[mode=Standard Class].flag | raw }}**). The aggregate test ROC-AUC ({{ M.test.roc_auc | f4 }}) is driven by First Class ({{ M.per_mode[mode=First Class].roc_auc | f4 }}) and Same Day ({{ M.per_mode[mode=Same Day].roc_auc | f4 }}). A model trained on Standard Class alone reaches only {{ M.verification.segment_models.Standard Class.segment_model_roc_auc | f4 }}.
-3. **The payment-type (TRANSFER) effect is a labelling artifact.** All {{ M.verification.cancel_fraud_orders | int }} CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments and every one of them carries `Late_delivery_risk = 0`. Within each shipping mode the TRANSFER late rate differs from other payment types by {{ M.verification.transfer_gap_within_mode_all | pp1 }}; with those orders removed the difference is {{ M.verification.transfer_gap_within_mode_clean | pp1 }}. Do not read TRANSFER as lower payment risk.
-4. **Not validated on Indian D2C.** This dataset represents global supply chain orders (predominantly North America and LATAM). It does not capture Indian D2C last-mile dynamics (NDR verification, fake door attempts, PIN-code delivery tiers, or COD payment fraud). Do not deploy without retraining on actual courier and return telemetry.
-5. **Scores are clustered.** The calibrated score takes only {{ M.score_clusters.unique_scores_test | int }} distinct values on the test set; {{ M.score_clusters.largest_standard_cluster_share_of_standard | pct1 }} of Standard Class orders share one score. Cutoffs are therefore placed in low-density gaps between clusters (see Risk tiers).
+### The problem
+
+Late deliveries are costly, but intervening on *every* order is also costly (calls, messages, expedited handling). A business needs to **focus its limited attention on the orders most likely to go wrong** — without annoying the many orders that will be fine.
+
+### The approach
+
+| Step | What happens | Why it matters |
+|---|---|---|
+| **Predict** | A LightGBM model reads 27 pre-dispatch features and gives a raw risk score. | Pre-dispatch only: nothing that is learned *after* shipping is allowed in (no "actual days taken", no "delivery status"). |
+| **Calibrate** | An isotonic calibrator turns the raw score into an honest probability: "orders scored ~70% are late about 70% of the time". | A score you can read as a probability is a score a business can price decisions on. |
+| **Tier** | Two cutoffs split orders into Low / Medium / High. The cutoffs sit in *low-density gaps* of the score distribution, so tiny changes do not reshuffle orders. | Stable, explainable triage instead of an arbitrary "0.5". |
+| **Flag** | Only the **High** tier is flagged. | A clear, simple operational rule: "flagged = High tier". |
+| **Explain** | SHAP values are grouped into business factors and turned into sentences ("Shipping mode: Same Day raises risk"). | Every score comes with reasons a non-technical person can read. |
+| **Audit** | Ablations, backtests, label-shuffle tests, per-shipping-mode checks and a verification study run automatically. | The project tells you where it is strong *and* where it is no better than a coin flip. |
+
+### Design principles
+
+- **Honest over impressive.** The dashboard has a Limitations page and the numbers include confidence intervals. Where the model has almost no signal (Standard Class and Second Class shipping), the app says so on the page where you score an order.
+- **Time-respecting evaluation.** Orders are split **chronologically** (train on the past, validate on the next slice, test on the most recent slice). No random shuffling, so no peeking into the future.
+- **One source of truth.** Every metric is computed once (step 10) into `outputs/final_metrics.json` and `models/thresholds.json`. The dashboard, this README and the Model Card read from those files; nothing is typed by hand.
+- **Real data only.** No simulated orders anywhere in the app. The "example orders" are real held-out orders.
 
 ---
 
-## Setup
+## 3. Results at a glance
+
+*(All numbers below are generated from `outputs/final_metrics.json` and `models/thresholds.json`.)*
+
+| What | Value |
+|---|---|
+| Orders in the project | {{ M.dataset.n_orders | int }} (from {{ M.dataset.raw_rows | int }} raw line items) |
+| Held-out test orders | {{ M.test.n | int }} (the most recent 15% in time) |
+| Late rate in the data | {{ M.dataset.positive_rate | pct1 }} |
+| **Test ROC-AUC** (ranking quality, 0.5 = coin flip, 1.0 = perfect) | **{{ M.test.roc_auc | f4 }}** (95% CI {{ M.test.roc_auc_ci | ci4 }}) |
+| **Test PR-AUC** (precision/recall trade-off; a coin flip scores the late rate ≈ {{ M.dataset.positive_rate | pct1 }}) | **{{ M.test.pr_auc | f4 }}** |
+| **Calibration error (ECE)** | {{ M.test.ece_raw | f4 }} before calibration → **{{ M.test.ece_calibrated | f4 }}** after |
+| Risk-tier cutoffs on the calibrated score | Low below **{{ T.tier_cutoffs.low_max | f4 }}**, High at or above **{{ T.tier_cutoffs.high_min | f4 }}** |
+| Multi-seed stability ({{ M.multi_seed.n_seeds | int }} seeds) | ROC-AUC {{ M.multi_seed.roc_auc_mean | f4 }} ± {{ M.multi_seed.roc_auc_std | f4 }} |
+
+**How to read this in one paragraph.** The model ranks late orders above on-time ones noticeably better than chance overall, its probabilities are well calibrated, and its High tier is far more likely to be late than average (see the tier table in [Detailed results](#12-detailed-results)). **But** the strength comes mostly from First Class and Same Day orders. For Standard Class and Second Class — a large share of volume — the model is close to a coin flip ({{ M.per_mode[mode=Standard Class].roc_auc | f4 }} and {{ M.per_mode[mode=Second Class].roc_auc | f4 }} ROC-AUC). The project reports this openly rather than hiding it inside an average.
+
+---
+
+## 4. Quick start: run the dashboard in 5 minutes
+
+The repository ships with everything the dashboard needs: the processed order table (`data/processed/orders.parquet`), the final trained model, the calibrator, the preprocessor, and all computed metrics. **You do not need to download the raw dataset or retrain anything just to use the app.**
+
+### What you need
+
+- **Python 3.11 or newer** (developed and tested on 3.13). Check with `python --version`.
+- **About 1 GB of free disk space** and an internet connection for installing packages.
+- A modern web browser (Chrome, Edge, Firefox, Safari).
+
+### Step-by-step
+
+**1. Get the code** (skip if you already have the folder):
 
 ```bash
-# 1. Clone / download the repo
-# 2. Place DataCoSupplyChainDataset.csv in data/raw/
+git clone <your-repository-url> rto_shield_model1
+cd rto_shield_model1
+```
 
-# 3. Create and activate virtual environment
+**2. Create an isolated Python environment** (recommended, keeps packages tidy):
+
+```bash
 python -m venv venv
-venv\Scripts\activate          # Windows PowerShell
-# source venv/bin/activate     # macOS / Linux
+```
 
-# 4. Install dependencies
+Activate it:
+
+| Your system | Command |
+|---|---|
+| Windows PowerShell | `venv\Scripts\Activate.ps1` |
+| Windows Command Prompt | `venv\Scripts\activate.bat` |
+| macOS / Linux | `source venv/bin/activate` |
+
+You should now see `(venv)` at the start of your terminal prompt.
+
+> **PowerShell says "running scripts is disabled"?** Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`, then activate again.
+
+**3. Install the packages** (a few minutes):
+
+```bash
 pip install -r requirements.txt
 ```
 
-**Python:** 3.11+ recommended (tested on 3.13)
-**Key packages:** pandas, numpy, scikit-learn, xgboost, lightgbm, shap, joblib, matplotlib, scipy, pyarrow, pytest, streamlit, plotly
-
----
-
-## How to Run
-
-### Full pipeline (recommended)
-
-```bash
-python run_all.py
-```
-
-Runs all scripts in dependency order and logs to `outputs/run_log.txt`. Order: `01 → 02 → 05 → 03 → 04 → 06 → 07 → 08 → 09 → 10 → 11` (the tuned model from step 05 must exist before tiers and thresholds are set in step 03).
-Full pipeline takes roughly 30–60 minutes (dominated by SHAP and multi-seed tuning).
-
-### Individual scripts
-
-```bash
-venv\Scripts\python.exe src/01_prepare.py              # Wrangle & feature-engineer
-venv\Scripts\python.exe src/02_train.py                # Train 5 models, compare metrics
-venv\Scripts\python.exe src/05_tune_multiseed.py       # Tune final LightGBM, calibrate, stability
-venv\Scripts\python.exe src/03_calibrate_threshold.py  # Cluster-aware tiers + thresholds (final model)
-venv\Scripts\python.exe src/04_explain.py              # SHAP explanations
-venv\Scripts\python.exe src/06_robustness.py           # Ablations, backtest, PSI
-venv\Scripts\python.exe src/07_predict_demo.py         # Predict demo (5 orders)
-venv\Scripts\python.exe src/08_sanity_checks.py        # Sanity checks suite & provenance
-venv\Scripts\python.exe src/09_verification.py         # Label-artifact / confound verification
-venv\Scripts\python.exe src/10_finalize.py             # Compute every reported number -> outputs/final_metrics.json
-venv\Scripts\python.exe src/11_render_docs.py          # Render README, MODEL_CARD, report_tables from JSON
-```
-
-### Single source of truth
-
-`outputs/final_metrics.json` (all metrics) and `models/thresholds.json` (cutoffs and tier text) feed the Streamlit app, `README.md`, `MODEL_CARD.md` and `outputs/report_tables.md`. Those documents are rendered from `templates/` and contain no hand-typed metrics.
-
-### Streamlit Dashboard
+**4. Start the dashboard:**
 
 ```bash
 streamlit run app.py
 ```
 
-Nine pages in three groups (Overview, Decisioning & Operations, Model Evaluation & Governance). Every number comes from
-`outputs/final_metrics.json`, `models/thresholds.json` or the real holdout orders; all charts are Plotly; there is no
-invented data (the "Score an Order" presets are real holdout orders, one per risk tier).
+**5. Open it.** Streamlit prints a line like `Local URL: http://localhost:8501`. Your browser usually opens by itself; if not, open that address manually. The first page (**Home**) appears within a few seconds. The model loads in the background, so the first time you open *Score an Order* it may take a moment longer.
 
-### CLI prediction
+To stop the app, press `Ctrl + C` in the terminal.
 
-```bash
-venv\Scripts\python.exe src/predict.py --json sample_order.json
-```
-
-### Tests
+**Optional but recommended — confirm everything works:**
 
 ```bash
-venv\Scripts\pytest.exe tests/ -v -s
+pytest tests/ -q
 ```
+
+This runs the automated test-suite, including a test that opens **every dashboard page** and fails on any error or empty card.
+
+> **Windows tip:** if you ever see strange characters or an encoding error in the terminal, run the command with UTF-8 enabled: in PowerShell `$env:PYTHONUTF8 = "1"` before the command.
 
 ---
 
-## Results
+## 5. Dashboard guide: every page explained
 
-### Model Comparison (threshold = 0.5, validation and test)
+Start with `streamlit run app.py`. The layout is the same on every page:
+
+- **Left sidebar — navigation.** Ten pages in three groups (*Overview*, *Decisioning & Operations*, *Model Evaluation & Governance*). Under the menu you will find the model version, the dataset name and size, and the dataset citation.
+- **Top of every page — a "proxy" badge.** It reminds you that the model predicts *late delivery on public data*, not RTO or COD behaviour.
+- **Cards and tabs.** Information is grouped in bordered cards; some pages use tabs. Hover over charts to see exact values.
+
+Colour language used everywhere: **green = Low risk**, **amber = Medium risk**, **red = High risk**, **indigo = interface / neutral**.
+
+---
+
+### 🏠 Home — the one-minute summary
+
+**Purpose:** let a newcomer understand the project and its honest verdict in under a minute.
+
+**What you see**
+
+- **Three headline cards:** the test ROC-AUC (with confidence interval), the High-tier precision (with how many orders it flags and how many late orders it catches), and the Standard + Second Class ROC-AUC (the "weak spot" number).
+- **"What works / What does not / Next" cards:** a short, number-backed summary — strengths (ranking of Same Day and First Class orders, calibration, stability over time), weaknesses (near-chance on Standard and Second Class), and the planned next step (a Model 2 focused on *which interventions help*, i.e. uplift).
+- **Data and chronological split card:** the date ranges of the training, validation and test sets.
+- **"Critical context & bounds" warning:** what the model does *not* show.
+
+**What to do:** read it top to bottom. Nothing to click. Every number is pulled live from the metrics file.
+
+---
+
+### 🛡️ Score an Order — try the model on one order
+
+**Purpose:** see the model's full decision for one order: score, tier, flag, reasons.
+
+**Step by step**
+
+1. At the top, pick a starting point with the radio buttons. You can start from a **real held-out order** (for example a typical Low, Medium or High risk case, identified by its order ID) or choose to **enter your own** values.
+2. In the **Order parameters** card, adjust the inputs: *Shipping mode*, *Payment type*, *Order value ($)*, *Number of items*, *Discount rate*, *Market*, *Department*, *Customer segment*, *Order hour (0–23)*, *Day of week*, *Order month*.
+3. The **Risk assessment** card updates immediately:
+   - a **risk badge** (e.g. "HIGH · 80%") and a **gauge** showing where the score sits against the tier cutoffs;
+   - a **one-sentence plain-English summary** naming the biggest driver;
+   - the **tier description**, with the real late rate observed for that tier on held-out data;
+   - a **flag line**: "FLAGGED (High tier)" or "Not flagged" — only the High tier is flagged;
+   - an **Information level** box: for First Class and Same Day the model has real signal ("Informative"); for Standard Class and Second Class it warns you the signal is **limited**, so do not over-trust the score;
+   - **Top reasons**: up to three plain-English drivers (🔺 raises risk, 🔻 lowers risk), shown only when a factor is strong enough (|SHAP| ≥ 0.05) and points the same way as the score;
+   - a **bar chart of grouped SHAP contributions** by business factor.
+4. Open **"Technical SHAP waterfall"** to see how the score is built step by step from the average, one factor at a time.
+
+**Good to know**
+
+- If you load a real order and change nothing, the score matches the *Real Test Orders* page exactly, and the page tells you whether that order was actually late (for reference only — the model never sees the outcome).
+- Fields you do not control here (country, region, product category, and the customer/country history features) keep the real order's values when you start from one; if you enter a fully custom order they are filled in automatically by the preprocessor (a note on the page says so).
+- Order value and item count have *small* effects in this dataset — don't expect the score to swing wildly when you move them. Shipping mode and scheduled days drive most of the movement.
+
+---
+
+### 📦 Real Test Orders — inspect real, unseen orders
+
+**Purpose:** check the model against **real outcomes** on orders it has never seen (the held-out test period).
+
+**What you see and can do**
+
+1. **Benchmark demo orders** (card 1): a small table of real test orders chosen to show High, Medium and Low cases, with the model's score, tier, whether it was flagged, what actually happened, and the top reasons.
+2. **Interactive order inspection** (card 2):
+   - Filter by **Shipping mode** and **Actual outcome** (All / Late only / On-time only).
+   - A **confusion summary** for the current filter: late orders caught, late orders missed, false alarms, plus precision and recall inside the filter. (A "false alarm" is an on-time order that got flagged.)
+   - **Download this filter as CSV** — risk scores and flags for every order in the filter.
+   - Pick any **individual order** from the dropdown (first 200 matches). You get its risk badge, flag status, actual delivery result, a verdict chip (🟢 Correct / 🟠 Missed / 🔴 False alarm, with a plain explanation), top reasons, and key order attributes.
+
+**Why it matters:** this is the most direct way to build intuition about when the model is right, when it misses, and what a flagged order looks like.
+
+---
+
+### 💡 Impact Simulator — what would flagging be worth?
+
+**Purpose:** translate the model into money, using the real test-set scores and **your own assumptions**.
+
+**Step by step**
+
+1. In **Business inputs**, set:
+   - *Cost of a failed delivery ($)* — what one late order costs you;
+   - *Cost per intervention ($)* — what one proactive action costs (call, SMS, address check…);
+   - *Shipping modes where intervention can work* — by default First Class is excluded, because its lateness comes from the carrier's 1-day promise, which a phone call cannot fix;
+   - *Success rate inside those modes* and *outside them* — the share of late orders your action actually rescues.
+2. In **Triage policy**, choose who you contact: **Flag High tier**, **Flag by threshold** (slide a score threshold; it starts at the precision ≥ 80% threshold), or **Flag all**.
+3. Read the **Test-set economics** card: orders targeted, late orders reached, targeting precision vs. baseline late rate, and **net benefit vs. doing nothing** and vs. contacting everyone, with a bar chart.
+4. The **Sensitivity** chart shows net benefit across all success rates (0–60%) for each policy, with the **break-even success rate** (the rescue rate at which a policy pays for itself).
+5. The **Strategic policy comparison** table lines up cost, gross savings, net benefit and recall for every policy.
+
+**Important:** the success rates are **assumptions, not measurements** — the public dataset contains no record of interventions. The page says so in a note. Use it to understand trade-offs, not to forecast revenue.
+
+---
+
+### 📁 Batch Scoring — score a whole file of orders
+
+**Purpose:** upload many orders at once, triage them, and (if you include the outcome) audit the model on your own file.
+
+**Step by step**
+
+1. **Choose data** (card 1): upload a CSV, or click **"50 test orders (with target)"** / **"50 test orders (unlabeled)"** for a ready-made sample of real held-out orders.
+2. **CSV template** (card): shows the exact columns with three real example rows and a **download button** so you can start from a correct file. Columns are `Order Id` plus the 27 model features. **Required columns:** `Shipping_Mode`, `Type`, `order_value`, `n_items`. Any other feature that is missing is imputed automatically. Add a `Late_delivery_risk` column (1 = late, 0 = on time) if you want an audit.
+3. **Schema validation:** the page tells you how many orders and recognised features it found, flags missing required columns (an error stops the run), lists optional columns being imputed, and warns about unrecognised shipping-mode values.
+4. **Triage & tier allocation:** KPI cards (total orders, Low / Medium / High counts and shares), a tier chart, a tier-by-shipping-mode chart and table.
+5. **Empirical evaluation** (only if your file has outcomes): ROC-AUC, PR-AUC, Brier score (each with a confidence interval), batch late rate, and a **calibration-by-tier** table and chart. Small batches are handled honestly — under 200 labelled rows you get a "small sample" warning, and any tier with fewer than 30 orders has its calibration gap suppressed.
+6. **Download & inspect:** download the full scored CSV (risk score, tier, flag, reasons, optionally the actual outcome) and preview the first 20 rows.
+
+> Note: scoring real Indian D2C orders would require retraining on real courier and return outcomes; this prototype is trained on public DataCo data only. The page says so when no batch is loaded.
+
+---
+
+### 📊 Performance — how good is the model, really?
+
+**Purpose:** all the evaluation evidence, split into five tabs.
+
+| Tab | What it shows |
+|---|---|
+| **Model comparison** | Four lead cards (ROC-AUC with CI, PR-AUC vs. late-rate baseline, High-tier precision and coverage, calibration error before → after) plus a chart and table comparing the baseline logistic regression, full logistic regression, random forest, XGBoost and the final tuned LightGBM on the validation and test sets. |
+| **Curves** (ROC & PR) | Interactive ROC and precision-recall curves, computed from **raw scores**. |
+| **Calibration** | Reliability diagram and table: predicted probability vs. the observed late rate, before and after isotonic calibration, with ECE. |
+| **Lift & gain** | Decile table — if you sorted orders by risk and looked at the top 10%, how many times more late orders would you find than at random (lift), and what share of all late orders do the top X% capture (gain)? |
+| **Risk tiers & policies** | The tier table (share of orders, actual late rate and precision per tier), the **policy table** (flag-High vs. other thresholds, etc.), and the **threshold-stability** table showing how little the flagged share moves if you shift a cutoff by ±0.01 or ±0.02. |
+
+---
+
+### 🔍 Explainability — why does the model score what it scores?
+
+**Purpose:** global explanations from SHAP (a method that splits a prediction into per-feature contributions).
+
+Three tabs:
+
+- **Global importance:** which *business factors* matter most on average (shipping mode, scheduled days, payment type, etc.), grouped so that all one-hot columns of one factor are added together.
+- **Beeswarm:** every dot is one order; position shows whether the feature pushed the score up or down, colour shows the feature's value.
+- **SHAP dependence (5 continuous features):** one sub-tab per numeric feature (e.g. order hour, order value, scheduled days) showing how the contribution changes across its range.
+
+A blue "How to read this" box at the top explains the plots in plain language.
+
+---
+
+### ⚙️ Robustness — does it hold up under stress?
+
+**Purpose:** five tabs of stress tests. A red callout at the top states the headline weakness (Standard and Second Class).
+
+| Tab | Question answered |
+|---|---|
+| **By shipping mode** | Is the model equally good for each shipping mode? (ROC-AUC with CI and an "informative / limited" flag per mode.) |
+| **Feature ablation** | What if we remove a group of features? Do the **history features** (customer and country past behaviour) actually help? (They add no statistically significant gain.) |
+| **Temporal backtest** | If we trained on earlier periods and tested on later ones (5 expanding folds), is performance stable over time? |
+| **Drift (PSI)** | Has the distribution of the main features shifted between training and test? (Population Stability Index.) |
+| **Sanity checks** | A **label-shuffle** test (scramble the answers: the model must fall to ≈ 0.5 AUC, proving it isn't cheating), a **trivial-policy comparison** (flag everyone / no one / random), and the **payment-type (TRANSFER) finding** — an apparent "payment effect" that turns out to be a labelling artifact. |
+
+---
+
+### ⚠️ Limitations — what this model must not be used for
+
+**Purpose:** six cards, each a plain-language caveat: (1) the proxy-target reality, (2) near rule-based label construction, (3) payment type is a label artifact, (4) the Standard / Second Class blind spot, (5) geographic scope and public-data constraints, (6) advisory-only governance and ethical guard-rails. Read this page before quoting any number.
+
+---
+
+### 🧭 Methodology — how it was built, in one page
+
+**Purpose:** a self-contained technical summary: (1) the pipeline diagram, (2) **allowed vs. forbidden features**, (3) the **leakage guards** (and the automated tests behind each), (4) exact split dates, and (5) the proxy-target explanation. Best page for answering "how do I know it isn't leaking the answer?".
+
+---
+
+## 6. A 10-minute first-time walkthrough
+
+Follow this path to see the whole project quickly:
+
+| Minutes | Page | Do this |
+|---|---|---|
+| 0–1 | **Home** | Read the three headline cards and the "What works / What does not" cards. |
+| 1–3 | **Score an Order** | Load the **High-risk** real order. Note the badge, the flag, the reasons and the "Information level" box. Then switch *Shipping mode* to **Standard Class** and watch the information-level warning appear and the score change. |
+| 3–4 | **Real Test Orders** | Filter *Shipping mode = Same Day*, *Actual outcome = Late only*. Read the confusion summary. Open one order and read its verdict chip. |
+| 4–6 | **Impact Simulator** | Keep the defaults and read the net benefit. Lower the success rate to 10% and watch the sensitivity chart; find the break-even rate. |
+| 6–7 | **Batch Scoring** | Click **"50 test orders (with target)"** and read the evaluation card and the calibration table. |
+| 7–8 | **Performance** | Click through the five tabs — especially *Risk tiers*. |
+| 8–9 | **Explainability** | Look at the global importance chart. |
+| 9–10 | **Robustness → By shipping mode**, then **Limitations** | See why Standard / Second Class are flagged as weak. |
+
+---
+
+## 7. Key terms (mini glossary)
+
+| Term | Plain meaning |
+|---|---|
+| **Late-delivery risk** | The label we predict: 1 = the order was delivered late, 0 = on time. |
+| **Pre-dispatch** | Known before the parcel leaves the warehouse (so usable for early warning). |
+| **Risk score** | The model's estimated probability (0–100%) that the order is late. |
+| **Raw score vs. calibrated score** | Raw = the model's direct output (used for *ranking* quality). Calibrated = adjusted so that "70%" really means ~70% of such orders are late (used for *decisions*, tiers and probabilities). |
+| **Risk tier** | Low / Medium / High band of the calibrated score. |
+| **Flagged** | An order in the **High** tier. |
+| **Precision** | Of the orders we flag, the share that really are late. |
+| **Recall (coverage)** | Of all late orders, the share we manage to flag. |
+| **False alarm / missed order** | A flagged order that was on time / a late order that was not flagged. |
+| **ROC-AUC** | Chance that a randomly chosen late order gets a higher score than a randomly chosen on-time one. 0.5 = guessing, 1.0 = perfect. |
+| **PR-AUC** | Area under the precision-recall curve; compare it with the late rate (what a guesser scores). |
+| **Confidence interval (CI)** | The range within which the true value plausibly lies (here from 1,000 bootstrap resamples). |
+| **Calibration / ECE** | How honest the probabilities are. Expected Calibration Error: lower is better. |
+| **Lift** | How many times more late orders a group contains than average. |
+| **SHAP** | A method that splits one prediction into the contribution of each feature. |
+| **Leakage** | Accidentally letting the model see information from the future (or the answer itself). Strictly forbidden here. |
+| **Chronological split** | Train on the past, validate on the next period, test on the newest period. |
+| **Proxy target** | A stand-in for what we really care about. Late delivery stands in for "delivery trouble", not for RTO. |
+| **PSI** | Population Stability Index: how much a feature's distribution has drifted. |
+
+---
+
+## 8. The data
+
+**Dataset:** *DataCo Smart Supply Chain for Big Data Analysis* (public).
+
+> Constante, F., Silva, F., & Pereira, A. (2019). *DataCo Smart Supply Chain for Big Data Analysis* [Data set]. Mendeley Data, V5.
+> DOI: [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5) · Licence: **CC BY 4.0**
+
+| Property | Value |
+|---|---|
+| Raw rows (order line items) | {{ M.dataset.raw_rows | int }} |
+| Processed orders (one row per order) | {{ M.dataset.n_orders | int }} |
+| Date range | {{ M.dataset.date_min | raw }} to {{ M.dataset.date_max | raw }} |
+| Countries | {{ M.dataset.n_countries | int }} |
+| Positive rate (`Late_delivery_risk = 1`) | {{ M.dataset.positive_rate | pct1 }} |
+| Raw file SHA-256 | `{{ M.dataset.sha256 | raw }}` |
+
+**Where the raw file goes:** only needed if you want to rebuild from scratch ([section 16](#16-rebuild-everything-from-scratch)). It is ~96 MB, so it is **not** committed to git. Download `DataCoSupplyChainDataset.csv` from the DOI above and place it in `data/raw/`.
+
+**From line items to orders.** The raw file has one row per product line. Step 1 collapses it to **one row per order** (`Order Id`), summing value and counting items, and builds the features described next. The processed table `data/processed/orders.parquet` is committed so the dashboard works out of the box.
+
+{{ @splits }}
+
+---
+
+## 9. The features the model uses
+
+The model uses **27 input features** (8 categorical + 19 numeric; 252 columns after one-hot encoding). Each is available **before dispatch**.
+
+| Group | Features | In plain words |
+|---|---|---|
+| **Logistics** | `Shipping_Mode`, `Days_for_shipment_scheduled`, `Market`, `Order_Region`, `Order_Country` | How the order will ship, how many days the shipping promise is, and where it is going. *Shipping mode and scheduled days are the strongest drivers.* |
+| **Payment** | `Type`, `is_cash` | Payment method (e.g. DEBIT, TRANSFER, PAYMENT, CASH). See the TRANSFER caveat in [limitations](#13-honest-limitations-read-before-you-trust-a-number). |
+| **Customer & product** | `Customer_Segment`, `Department_Name`, `main_item_category`, `n_distinct_categories` | Who is buying and what category of goods. |
+| **Order size** | `order_value`, `n_items`, `value_per_item`, `avg_discount_rate`, `high_discount_flag` | Basket value, number of items, value per item, discount depth and a "heavily discounted" flag. |
+| **Timing** | `order_month`, `order_dow`, `order_hour`, `is_weekend`, `is_night_order` | When the order was placed (month, day of week, hour, weekend, night). Order hour matters for Same Day orders. |
+| **Customer / country history** | `customer_prev_orders`, `customer_prev_late_rate`, `customer_prev_cash_share`, `days_since_prev_order`, `country_prev_orders`, `country_prev_late_rate` | What happened on this customer's and this country's **earlier** orders — using only orders whose outcome was already observable at the time of the new order (leakage-safe). Country rates are smoothed (Bayesian prior) so small countries don't produce wild values. |
+
+### What the model is *never* allowed to see
+
+These are blocked in `src/config.py` (`FORBIDDEN_FEATURES`) and checked by automated tests:
+
+- **Post-dispatch outcomes:** `Days for shipping (real)`, `Delivery Status`, `Order Status`, `shipping date`, profit columns.
+- **The evaluation-only secondary target** `aux_target_cancel_fraud` (cancelled / suspected-fraud orders), used only to evaluate.
+- **Personal data:** customer name, e-mail, password, street, zip code.
+- **Identifiers and free text:** product image, product description.
+
+---
+
+## 10. How the model is trained
+
+### 10.1 Chronological split (no peeking)
+
+Orders are sorted by date and cut at the **order** level (so one order never straddles two sets):
+
+- **Train (earliest 70%)** — the model learns here.
+- **Validation (next 15%)** — tuning, calibration and the tier cutoffs are chosen here.
+- **Test (latest 15%)** — touched only for final reporting.
+
+### 10.2 Preprocessing
+
+A scikit-learn `ColumnTransformer` imputes missing values (median for numbers, "missing" category for text), scales numeric columns and one-hot encodes categoricals. It is **fitted on training data only** and saved as `models/preprocessor.joblib`, so the dashboard and the batch scorer transform data exactly as training did.
+
+### 10.3 Five candidate models
+
+| Model | Role |
+|---|---|
+| Baseline Logistic Regression | Only shipping mode + scheduled days — "what do two obvious features give us?" |
+| Full Logistic Regression | All 27 features, linear. |
+| Random Forest | Non-linear benchmark. |
+| XGBoost | Gradient boosting benchmark. |
+| **LightGBM** | Gradient boosting; **the chosen model** after tuning. |
 
 {{ @model_comparison_short }}
 
-### Final Model: tuned LightGBM + isotonic calibration
+### 10.4 Tuning and stability
+
+- **Hyper-parameter search:** `RandomizedSearchCV` with 30 trials over 7 LightGBM hyper-parameters, scored by ROC-AUC with a **time-series cross-validation** (4 expanding folds) on the training set only.
+- **Early stopping** on the validation set (50 rounds) so the model does not over-train.
+- The tuned model is kept only if it beats the default on validation.
+- **Multi-seed stability:** the final configuration is trained with {{ M.multi_seed.n_seeds | int }} random seeds; the spread (± {{ M.multi_seed.roc_auc_std | f4 }} ROC-AUC) shows the result is not a lucky seed.
+- **Bootstrap confidence intervals:** 1,000 resamples of the test set give the 95% CIs.
+
+{{ @hyperparams }}
+
+### 10.5 Calibration
+
+Boosted trees tend to output over- or under-confident scores. An **isotonic regression** is fitted on the *validation* scores to map raw scores to honest probabilities (saved as `models/final_calibrator.joblib`). Calibration error (ECE) on test falls from {{ M.test.ece_raw | f4 }} to **{{ M.test.ece_calibrated | f4 }}**.
+
+> **Metric convention used everywhere:** ranking metrics (ROC-AUC, PR-AUC, lift) use **raw** scores because calibration creates ties; decisions, calibration and tiers use **calibrated** scores.
+
+### 10.6 Risk tiers and cutoffs
+
+Because the calibrated score takes only a limited number of distinct values (the scores form *clusters*), a naive cutoff can fall in the middle of a cluster and make results jump. Instead:
+
+1. Find clusters of the validation score distribution and the **low-density gaps** between them.
+2. Place the Low/Medium and Medium/High cutoffs at gap midpoints — selected on **validation only**, then verified on test.
+3. Run a **stability check**: shifting each cutoff by ±0.01 or ±0.02 must move the flagged share by **less than 5 percentage points** — otherwise the pipeline stops with an error.
+
+Result: Low below **{{ T.tier_cutoffs.low_max | f4 }}**, High at or above **{{ T.tier_cutoffs.high_min | f4 }}**. **Flagged = High tier.** A separate threshold giving precision ≥ 80% is stored for the Impact Simulator's threshold policy.
+
+### 10.7 Explanations
+
+SHAP (TreeExplainer) computes each feature's contribution to a score. One-hot columns are **grouped back into their business factor** and then converted to short sentences (`src/reasons.py`). Reasons are only shown when they are strong enough (|SHAP| ≥ 0.05) and point in the same direction as the score, so they never contradict the verdict.
+
+### 10.8 Verification studies
+
+Beyond training, the pipeline checks the model's own claims: a **label-shuffle test**, **ablations**, a **rolling backtest**, a **drift check**, and a **verification study** that discovered that the TRANSFER payment "effect" is a labelling artifact and that the label behaves almost like a rule (Same Day orders placed before noon are late far more often). Read `outputs/verification_findings.md` and `outputs/experiments.md`.
+
+---
+
+## 11. The pipeline, step by step
+
+`python run_all.py` runs these scripts in order and logs to `outputs/run_log.txt`.
+
+| # | Script | What it does | Main outputs |
+|---|---|---|---|
+| 1 | `01_prepare.py` | Collapses line items to orders, engineers features, builds leakage-safe history features | `data/processed/orders.parquet` |
+| 2 | `02_train.py` | Chronological split; trains the 5 candidate models; compares them | model files, `metrics_model_comparison.csv`, ROC/PR curves |
+| 3 | `05_tune_multiseed.py` | Tunes LightGBM, calibrates with isotonic regression, multi-seed run, bootstrap CIs | `final_model.joblib`, `final_calibrator.joblib` |
+| 4 | `03_calibrate_threshold.py` | Cluster-aware tier cutoffs, thresholds, stability table, decile lift | `models/thresholds.json`, `decile_table.csv`, `calibration.png` |
+| 5 | `04_explain.py` | SHAP global importance, beeswarm, dependence and waterfall plots | `shap_*.png` |
+| 6 | `06_robustness.py` | Ablations, per-mode results, rolling backtest, PSI | `ablation_results.csv`, `per_mode_results.csv`, `backtest_results.csv`, `psi_results.csv` |
+| 7 | `07_predict_demo.py` | Scores 5 real test orders (2 High, 1 Medium, 2 Low) | `demo_scores.csv` |
+| 8 | `08_sanity_checks.py` | Leakage / reproducibility / label-shuffle checks and provenance | `sanity_checks.md`, `data_provenance.txt` |
+| 9 | `09_verification.py` | Label-artifact, payment-confound, score-cluster and segment studies | `verification_findings.md` |
+| 10 | `10_finalize.py` | Computes **every reported number once** | `outputs/final_metrics.json` |
+| 11 | `11_experiments.py` | Extra experiments (segment models, alternative targets); **never replaces the final model** | `experiments.md` / `.json` |
+| 12 | `11_render_docs.py` | Renders `README.md`, `MODEL_CARD.md`, `docs/VIVA_CHEATSHEET.md`, `report_tables.md` from templates + JSON | the documents |
+
+(`01_inspect_data.py` is an optional helper that profiles the raw CSV; `run_all.py` does not need it.)
+
+---
+
+## 12. Detailed results
 
 > **Metric conventions.** {{ @ranking_note }}
+
+### Final model: tuned LightGBM + isotonic calibration
 
 {{ @final_metrics }}
 
 **Multi-seed stability ({{ M.multi_seed.n_seeds | int }} seeds):** ROC-AUC {{ M.multi_seed.roc_auc_mean | f4 }} ± {{ M.multi_seed.roc_auc_std | f4 }}, PR-AUC {{ M.multi_seed.pr_auc_mean | f4 }} ± {{ M.multi_seed.pr_auc_std | f4 }}
 
-**Δ ROC-AUC vs baseline (bootstrap 95% CI):** {{ M.test.delta_roc_auc_ci | ci4 }}
+**Δ ROC-AUC vs. baseline logistic regression (bootstrap 95% CI):** {{ M.test.delta_roc_auc_ci | ci4 }}
 
-**Calibration (final model, test):**
+### Calibration (final model, test)
 
 {{ @calibration_table }}
-
-### Per-shipping-mode performance (test)
-
-{{ @per_mode }}
-
-{{ @per_mode_note }}
-
-### Feature ablation (test)
-
-{{ @ablation }}
-
-{{ @ablation_verdict }}
 
 ### Risk tiers
 
@@ -170,43 +539,227 @@ Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most:
 
 {{ @stability_table }}
 
+### Per-shipping-mode performance (test)
+
+{{ @per_mode }}
+
+{{ @per_mode_note }}
+
+### Feature ablation (test)
+
+{{ @ablation }}
+
+{{ @ablation_verdict }}
+
 ---
 
-## Folder Structure
+## 13. Honest limitations: read before you trust a number
+
+1. **Near rule-based labelling.** `Late_delivery_risk` is a pre-computed label in the DataCo dataset that heavily reflects near rule-based dispatch logic rather than real courier variance. For Same Day orders, the order hour alone separates outcomes: orders placed before 12:00 are late {{ M.same_day_noon_rule.late_rate_before_noon | pct1 }} of the time, orders from 12:00 onward {{ M.same_day_noon_rule.late_rate_from_noon | pct1 }} ({{ M.same_day_noon_rule.orders | int }} Same Day orders).
+2. **Standard Class has almost no signal.** Standard Class is {{ M.per_mode[mode=Standard Class].share | pct1 }} of test orders, and the model's ROC-AUC there is **{{ M.per_mode[mode=Standard Class].roc_auc | f4 }}** (95% CI {{ M.per_mode[mode=Standard Class].roc_auc_ci_lo | f4 }} to {{ M.per_mode[mode=Standard Class].roc_auc_ci_hi | f4 }}; signal: **{{ M.per_mode[mode=Standard Class].flag | raw }}**). The aggregate test ROC-AUC ({{ M.test.roc_auc | f4 }}) is driven by First Class ({{ M.per_mode[mode=First Class].roc_auc | f4 }}) and Same Day ({{ M.per_mode[mode=Same Day].roc_auc | f4 }}). A model trained on Standard Class alone reaches only {{ M.verification.segment_models.Standard Class.segment_model_roc_auc | f4 }}.
+3. **The payment-type (TRANSFER) effect is a labelling artifact.** All {{ M.verification.cancel_fraud_orders | int }} CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments and every one of them carries `Late_delivery_risk = 0`. Within each shipping mode the TRANSFER late rate differs from other payment types by {{ M.verification.transfer_gap_within_mode_all | pp1 }}; with those orders removed the difference is {{ M.verification.transfer_gap_within_mode_clean | pp1 }}. Do not read TRANSFER as lower payment risk.
+4. **The target is a proxy.** It measures *late delivery*, not RTO, doorstep refusal or COD default. No result here measures RTO or Indian COD performance.
+5. **Not validated on Indian D2C.** This dataset represents global supply-chain orders (predominantly North America and LATAM). It does not capture Indian D2C last-mile dynamics (NDR verification, fake door attempts, PIN-code delivery tiers, or COD payment fraud). Do not deploy without retraining on actual courier and return telemetry.
+6. **Scores are clustered.** The calibrated score takes only {{ M.score_clusters.unique_scores_test | int }} distinct values on the test set; {{ M.score_clusters.largest_standard_cluster_share_of_standard | pct1 }} of Standard Class orders share one score. Cutoffs are therefore placed in low-density gaps between clusters.
+7. **Advisory use only.** The score should support human triage. It must not be used to refuse service, discriminate between customers or make automated adverse decisions.
+8. **Impact numbers are what-ifs.** The Impact Simulator uses user-entered costs and success rates; the dataset has no record of real interventions.
+
+---
+
+## 14. Tech stack
+
+| Layer | Technology | Used for |
+|---|---|---|
+| Language | **Python 3.11+** (tested on 3.13) | Everything |
+| Data wrangling | **pandas**, **NumPy**, **PyArrow** (Parquet) | Order table, features, storage |
+| Modelling | **LightGBM** (final model), **XGBoost**, **scikit-learn** (logistic regression, random forest, preprocessing, isotonic calibration, metrics, time-series CV) | Training and evaluation |
+| Statistics | **SciPy** | Distributions for the hyper-parameter search, statistics |
+| Explainability | **SHAP** | Per-order and global feature attributions |
+| Persistence | **joblib**, JSON | Saved models; `final_metrics.json`, `thresholds.json` |
+| Plots (offline) | **Matplotlib** | PNG figures in `outputs/` |
+| Dashboard | **Streamlit** (multi-page via `st.navigation`) + **Plotly** | Interactive app and charts |
+| Testing | **pytest**, Streamlit `AppTest` | Unit, leakage, consistency and every-page UI tests |
+| Docs | Template engine in `src/11_render_docs.py` | README / Model Card generated from the JSON |
+
+---
+
+## 15. Using the model without the dashboard
+
+### 15.1 Command line — score one order
+
+```bash
+python src/predict.py --json sample_order.json --pretty
+```
+
+`sample_order.json` is a real example order. The output looks like:
+
+```json
+{
+  "order_id": 77188,
+  "risk_score": 1.0,
+  "display_score": ">99%",
+  "tier": "High",
+  "tier_description": "Highest risk: 88% of these orders were late in held-out test data (overall: 55%).",
+  "flagged": true,
+  "top_reasons": [
+    "Shipping mode: First Class raises risk",
+    "Scheduled shipping days: 1 raises risk",
+    "Payment type: CASH raises risk"
+  ]
+}
+```
+
+(This is the real output for `sample_order.json`. Values depend on the order you provide; a score this close to 100% is displayed as `>99%` rather than a false "100%".)
+
+### 15.2 Python
+
+```python
+import sys
+sys.path.insert(0, "src")
+import predict
+
+result = predict.score_order({
+    "Shipping_Mode": "Second Class", "Type": "DEBIT",
+    "Days_for_shipment_scheduled": 2,
+    "order_value": 250.0, "n_items": 2, "order_hour": 14,
+})
+print(result["risk_score"], result["tier"], result["flagged"], result["top_reasons"])
+```
+
+Missing features are imputed automatically. Forbidden post-dispatch columns and personal data are silently ignored. For many orders at once use `predict.score_batch(dataframe)`, which returns `order_id`, `risk_score`, `raw_score`, `tier`, `tier_description`, `flagged` and three reason columns.
+
+### 15.3 Output fields
+
+| Field | Meaning |
+|---|---|
+| `risk_score` | Calibrated probability of late delivery, 0–1. |
+| `display_score` | Human-readable percentage (clipped so it never shows a false "0%" or "100%"). |
+| `tier` | `Low`, `Medium` or `High`. |
+| `tier_description` | Relative-language sentence with the real late rate of that tier on held-out data. |
+| `flagged` | `true` only for the High tier. |
+| `top_reasons` | Up to three plain-English SHAP-based reasons. |
+
+---
+
+## 16. Rebuild everything from scratch
+
+Only needed if you want to regenerate the data, models and documents yourself.
+
+1. Complete the Quick start (steps 1–3).
+2. Download `DataCoSupplyChainDataset.csv` ([DOI](https://doi.org/10.17632/8gx2fvg2k6.5)) into `data/raw/`.
+3. Run the whole pipeline:
+
+```bash
+python run_all.py
+```
+
+It takes roughly **30–60 minutes** (SHAP and multi-seed tuning dominate), stops on the first failing script, and writes `outputs/run_log.txt`. The run is deterministic: running it twice yields the same final model.
+
+Or run individual steps (in this order):
+
+```bash
+python src/01_prepare.py              # wrangle & feature-engineer
+python src/02_train.py                # train 5 models, compare
+python src/05_tune_multiseed.py       # tune final LightGBM + calibrate + stability
+python src/03_calibrate_threshold.py  # cluster-aware tiers + thresholds
+python src/04_explain.py              # SHAP plots
+python src/06_robustness.py           # ablations, backtest, PSI
+python src/07_predict_demo.py         # demo orders
+python src/08_sanity_checks.py        # sanity checks
+python src/09_verification.py         # label-artifact / confound studies
+python src/10_finalize.py             # -> outputs/final_metrics.json
+python src/11_experiments.py          # extra experiments (read-only)
+python src/11_render_docs.py          # regenerate README, MODEL_CARD, report_tables
+```
+
+> The Random Forest model file is ~566 MB and is not committed; it is regenerated in step 2.
+
+**Editing documentation:** do not edit `README.md`, `MODEL_CARD.md` or `docs/VIVA_CHEATSHEET.md` directly. Edit the files in `templates/` and run `python src/11_render_docs.py`.
+
+---
+
+## 17. Tests
+
+```bash
+pytest tests/ -q
+```
+
+| Test file | What it protects |
+|---|---|
+| `test_no_leakage.py` | Forbidden / post-dispatch / personal columns never reach the model; history features match a brute-force recomputation from past orders only. |
+| `test_pipeline.py` | Chronological splits do not overlap; `score_order` returns valid output; history features contain no future information. |
+| `test_metrics_reporting.py` | Metric functions, bootstrap CIs, batch small-sample rules. |
+| `test_consistency.py` | Docs, app and JSON agree; tiers cover all test orders; flag = High tier; no hand-typed cutoffs in code. |
+| `test_ui_components.py` | Formatting helpers (percentages, money, reasons). |
+| `test_app_pages.py` | Opens **every dashboard page** with Streamlit `AppTest`: no exceptions, no empty cards, no placeholder `$-` values. |
+| `test_imports.py` | All modules import cleanly. |
+
+---
+
+## 18. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `streamlit: command not found` | Activate the virtual environment, or run `python -m streamlit run app.py`. |
+| `ModuleNotFoundError` | Run `pip install -r requirements.txt` inside the activated environment. |
+| Port 8501 already in use | `streamlit run app.py --server.port 8502` |
+| Browser doesn't open | Copy the `Local URL` from the terminal into your browser. |
+| First page of *Score an Order* is slow | The model and SHAP load once in the background; later interactions are fast. |
+| Charts look unstyled after a theme change | Restart Streamlit (theme settings in `.streamlit/config.toml` are read at start-up). |
+| Garbled characters / `UnicodeEncodeError` on Windows | Set `PYTHONUTF8=1` (PowerShell: `$env:PYTHONUTF8 = "1"`). |
+| `FileNotFoundError: DataCoSupplyChainDataset.csv` | Only needed for the full pipeline; download it into `data/raw/` (section 16). The dashboard does not need it. |
+| `CutoffError` during step 3 | The stability guard fired: a cutoff moved the flagged share by ≥ 5 points. This is deliberate — inspect the validation score gaps instead of overriding it. |
+| Batch upload says "missing required column" | Use the template download on the *Batch Scoring* page; required columns are `Shipping_Mode`, `Type`, `order_value`, `n_items`. |
+
+---
+
+## 19. Project structure
 
 ```
 rto_shield_model1/
-├── app.py                        # Streamlit entry point: page config, grouped navigation, sidebar chrome
+├── app.py                        # Streamlit entry point: page config, navigation, sidebar
 ├── ui/                           # dashboard package (no numbers typed in UI code)
-│   ├── theme.py                  # palette, CSS, shared Plotly template
-│   ├── components.py             # kpi_card, risk_badge, callout, styled_table, fmt_pct, fmt_money, plain_sentence
-│   ├── charts.py                 # every chart (Plotly)
-│   ├── data.py                   # cached loaders (st.cache_resource / st.cache_data), background model warm-up
+│   ├── theme.py                  # colours, CSS, shared Plotly template
+│   ├── components.py             # KPI cards, risk badge, callouts, tables, formatting helpers
+│   ├── charts.py                 # every Plotly chart
+│   ├── data.py                   # cached loaders, background model warm-up
 │   └── pages/                    # home, score_order, real_orders, impact, batch,
-│                                 # performance, explainability, robustness, limitations
-├── .streamlit/config.toml        # light theme, indigo primary #4F46E5, sans-serif
+│                                 # performance, explainability, robustness, limitations, methodology
+├── .streamlit/config.toml        # light theme, indigo primary colour
 ├── data/
-│   ├── raw/                      # DataCoSupplyChainDataset.csv (not committed)
-│   └── processed/orders.parquet  # order-level feature table
+│   ├── raw/                      # DataCoSupplyChainDataset.csv (download it; not committed)
+│   └── processed/orders.parquet  # one row per order, all features
 ├── src/
-│   ├── config.py                 # Paths, feature lists, constants
-│   ├── features.py               # Feature matrix builder
-│   ├── tiering.py                # Cluster-aware cutoff selection + stability checks
-│   ├── reasons.py                # Plain-English SHAP reason codes
-│   ├── predict.py                # score_order() / score_batch() + CLI
-│   └── 01_prepare.py … 11_render_docs.py
-├── templates/                    # README / MODEL_CARD templates (no hand-typed numbers)
-├── models/                       # Saved models + thresholds.json
-├── outputs/                      # final_metrics.json, CSVs, PNGs, report_tables.md
-├── tests/
-├── run_all.py
-├── sample_order.json
-├── README.md                     # generated
-└── MODEL_CARD.md                 # generated
+│   ├── config.py                 # paths, feature lists, forbidden columns, split fractions
+│   ├── features.py               # preprocessing / feature matrix builder
+│   ├── tiering.py                # cluster-aware cutoffs + stability checks
+│   ├── reasons.py                # SHAP → plain-English reasons
+│   ├── predict.py                # score_order(), score_batch(), CLI
+│   ├── utils.py                  # metrics, bootstrap CIs, calibration helpers
+│   └── 01_prepare.py … 11_render_docs.py   # the pipeline (section 11)
+├── models/                       # final_model / final_calibrator / preprocessor + thresholds.json
+├── outputs/                      # final_metrics.json, tables, CSVs, PNG figures, reports
+├── templates/                    # README / MODEL_CARD / VIVA templates (documents are generated)
+├── docs/VIVA_CHEATSHEET.md       # key numbers, demo script, examiner Q&A (generated)
+├── tests/                        # pytest suite
+├── run_all.py                    # runs the full pipeline
+├── sample_order.json             # example input for the CLI
+├── requirements.txt
+├── README.md                     # this file (generated)
+└── MODEL_CARD.md                 # formal model documentation (generated)
 ```
 
 ---
 
-## Licence
+## 20. Other documents, licence and citation
 
-Code: MIT. Dataset: CC BY 4.0 (cite Constante et al. 2019).
+| Document | What it is |
+|---|---|
+| `MODEL_CARD.md` | Formal model documentation: intended use, data, evaluation, limitations, ethics. |
+| `docs/VIVA_CHEATSHEET.md` | The 10 numbers to remember, a 5-minute demo script and 15 examiner questions with honest answers. |
+| `outputs/verification_findings.md` | The label-artifact, payment-confound and score-cluster investigation. |
+| `outputs/experiments.md` | Segment-model, alternative-target and cleaned-task experiments (none replaced the final model). |
+| `outputs/sanity_checks.md` | Leakage, reproducibility and provenance checks. |
+| `outputs/report_tables.md` | Every results table in one generated file. |
+
+**Licence:** code under MIT; dataset under CC BY 4.0 — please cite Constante, Silva & Pereira (2019), DOI [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5).
