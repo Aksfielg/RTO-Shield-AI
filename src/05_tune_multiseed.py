@@ -242,7 +242,6 @@ def compare_tuned_vs_default(
 
     print(f"\n  {'Model':<12}  {'Val ROC-AUC':>12}")
     print(f"  {_sep('-', 28)}")
-    print(f"  {'Default':<12}  {roc_default:>12.4f}")
     tuned_arrow = " ← WINNER" if improved else ""
     default_arrow = " ← WINNER" if not improved else ""
     print(f"  {'Default':<12}  {roc_default:>12.4f}{default_arrow}")
