@@ -172,6 +172,23 @@ Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most:
 
 ---
 
+## Ceiling Analysis
+
+`src/12_ceiling_and_challengers.py` asks how much of the shipped model's test ROC-AUC simple group-mean lookup tables reproduce, and whether challengers can beat it. It reads `data/processed/orders.parquet`, reuses the chronological 70/15/15 split from `02_train.py`, and writes `outputs/ceiling_and_challengers.md`. It never modifies anything in `models/`.
+
+- **Lookup tables** (fit on train+val): `Shipping_Mode`; plus `same_day_pm` (Same Day orders placed from 12:00); plus `Type`; plus `order_hour`.
+- **Per-mode LightGBM** with early stopping on validation and a random-hash control feature (`Customer_Id % 7`) to expose noise-fitting.
+- **Paired bootstrap** of the AUC difference between the 3-column lookup and the shipped model on the same test rows.
+- **4-fold expanding-window time check**, lookup vs LightGBM.
+
+All figures, with 95% bootstrap CIs, are in `outputs/ceiling_and_challengers.md`; they are not duplicated here. This analysis is read-only and is not part of `run_all.py`:
+
+```bash
+python src/12_ceiling_and_challengers.py
+```
+
+---
+
 ## Folder Structure
 
 ```
