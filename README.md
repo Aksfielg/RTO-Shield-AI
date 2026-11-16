@@ -517,7 +517,9 @@ Beyond training, the pipeline checks the model's own claims: a **label-shuffle t
 | 9 | `09_verification.py` | Label-artifact, payment-confound, score-cluster and segment studies | `verification_findings.md` |
 | 10 | `10_finalize.py` | Computes **every reported number once** | `outputs/final_metrics.json` |
 | 11 | `11_experiments.py` | Extra experiments (segment models, alternative targets); **never replaces the final model** | `experiments.md` / `.json` |
-| 12 | `11_render_docs.py` | Renders `README.md`, `MODEL_CARD.md`, `docs/VIVA_CHEATSHEET.md`, `report_tables.md` from templates + JSON | the documents |
+| 12 | `12_ceiling_and_challengers.py` | Lookup-table ceiling, per-mode LightGBM challengers, paired bootstrap vs the shipped model, expanding-window check (read-only) | `ceiling_and_challengers.md` |
+| 13 | `13_operating_points.py` | Validation-chosen thresholds with test CIs and a review-capacity table (read-only) | `operating_points.md` |
+| 14 | `11_render_docs.py` | Renders `README.md`, `MODEL_CARD.md`, `docs/VIVA_CHEATSHEET.md`, `report_tables.md` from templates + JSON | the documents |
 
 (`01_inspect_data.py` is an optional helper that profiles the raw CSV; `run_all.py` does not need it.)
 
@@ -624,6 +626,26 @@ Signal = **limited** when the ROC-AUC 95% bootstrap CI lower bound is below 0.55
 | Shipping only (baseline) | 2 | 0.7291 | [0.7206, 0.7374] | 0.7503 | 0.1963 | 0.010 | 0.710 | 0.550 | 1.000 | 0.550 | 0.500 | 0.000 | 0.000 | +0.0425 [+0.0364, +0.0483] * |
 
 Threshold metrics use each ablated model's OWN max-F1 threshold chosen on validation. Delta = ROC-AUC(all features) - ROC-AUC(ablated), paired bootstrap, * = CI excludes 0. History features add NO significant gain: ROC-AUC(all) - ROC-AUC(no history) = +0.0008 (95% paired-bootstrap CI [-0.0017, +0.0033] includes 0 or is negative); PR-AUC is 0.8362 with history vs 0.8362 without.
+
+### Ceiling analysis and operating points
+
+Two read-only studies sit on top of the shipped model; neither modifies anything in `models/`, and their figures (with 95% bootstrap CIs) live in the generated reports rather than here.
+
+`src/12_ceiling_and_challengers.py` -> `outputs/ceiling_and_challengers.md` asks how much of the model's test ROC-AUC simple group-mean lookup tables reproduce, and whether challengers can beat it. It reuses the chronological 70/15/15 split from `02_train.py`.
+
+- **Lookup tables** (fit on train+val): `Shipping_Mode`; plus `same_day_pm` (Same Day orders placed from 12:00); plus `Type`; plus `order_hour`.
+- **Per-mode LightGBM** with early stopping on validation and a random-hash control feature (`Customer_Id % 7`) to expose noise-fitting.
+- **Paired bootstrap** of the AUC difference between the 3-column lookup and the shipped model on the same test rows.
+- **4-fold expanding-window time check**, lookup vs LightGBM.
+
+`src/13_operating_points.py` -> `outputs/operating_points.md` picks thresholds on validation only (max balanced accuracy, max MCC, max accuracy), reports them on test with bootstrap CIs, and tabulates review capacity (precision, recall and lift when reviewing the top 10/20/30/40% of orders by raw score).
+
+Both run as part of `run_all.py`, or on their own:
+
+```bash
+python src/12_ceiling_and_challengers.py
+python src/13_operating_points.py
+```
 
 ---
 
@@ -743,6 +765,8 @@ python src/08_sanity_checks.py        # sanity checks
 python src/09_verification.py         # label-artifact / confound studies
 python src/10_finalize.py             # -> outputs/final_metrics.json
 python src/11_experiments.py          # extra experiments (read-only)
+python src/12_ceiling_and_challengers.py  # lookup ceiling + challengers (read-only)
+python src/13_operating_points.py     # validation-chosen thresholds + capacity (read-only)
 python src/11_render_docs.py          # regenerate README, MODEL_CARD, report_tables
 ```
 
@@ -767,6 +791,8 @@ pytest tests/ -q
 | `test_ui_components.py` | Formatting helpers (percentages, money, reasons). |
 | `test_app_pages.py` | Opens **every dashboard page** with Streamlit `AppTest`: no exceptions, no empty cards, no placeholder `$-` values. |
 | `test_imports.py` | All modules import cleanly. |
+| `test_ceiling_and_challengers.py` | Lookup tables, `same_day_pm`, bootstrap helpers and the split used by the ceiling analysis. |
+| `test_operating_points.py` | Threshold selection uses validation only; metrics match scikit-learn; capacity table values. |
 
 ---
 

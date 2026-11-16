@@ -40,6 +40,8 @@ SCRIPTS = [
     "09_verification.py",
     "10_finalize.py",              # writes outputs/final_metrics.json
     "11_experiments.py",           # read-only experiments -> outputs/experiments.md (never replaces the model)
+    "12_ceiling_and_challengers.py",  # read-only: lookup ceiling + challengers -> outputs/ceiling_and_challengers.md
+    "13_operating_points.py",      # read-only: validation-chosen thresholds + capacity -> outputs/operating_points.md
     "11_render_docs.py",           # README / MODEL_CARD / report_tables from JSON
 ]
 
