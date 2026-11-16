@@ -34,7 +34,7 @@ SRC_DIR = Path(__file__).resolve().parent.parent / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from config import PROCESSED_DIR, FORBIDDEN_FEATURES, TRAIN_FRAC
+from config import PROCESSED_DIR, FORBIDDEN_FEATURES, TRAIN_FRAC, RAW_CSV
 
 # ---------------------------------------------------------------------------
 # Load 01_prepare as "src_prepare" (must happen before any from-imports of it)
@@ -170,6 +170,11 @@ def _get_enriched(all_orders: pd.DataFrame) -> pd.DataFrame:
 # Test 1: brute-force vs vectorised history features
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skipif(
+    not RAW_CSV.exists(),
+    reason=f"raw dataset not found at {RAW_CSV} (gitignored, 96MB; download it from "
+           "Mendeley Data DOI 10.17632/8gx2fvg2k6.5 to run the brute-force history check)",
+)
 def test_history_brute_force(orders, sample):
     """
     For each sampled order, recompute history features by O(n) scan and
