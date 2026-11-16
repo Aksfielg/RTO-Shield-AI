@@ -146,3 +146,42 @@ def test_final_metrics_note_raw_ranking(fm):
     for p in fm["policies"]:
         for k in ["accuracy", "balanced_accuracy", "specificity", "mcc"]:
             assert k in p
+
+
+# ---------------------------------------------------------------------------
+# precision_at_k: deterministic tie handling
+# ---------------------------------------------------------------------------
+
+def test_precision_at_k_ties_use_average_outcome_of_tied_block():
+    import numpy as np
+    from utils import precision_at_k
+
+    # top 4 of 10: one row strictly above (y=1), then a 5-row tie block with 2 positives
+    # that fills 3 slots -> 1 + 3 * (2/5) = 2.2 expected positives -> 0.55
+    y = np.array([1, 1, 1, 0, 0, 0, 0, 0, 0, 0])
+    p = np.array([0.9, 0.5, 0.5, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1, 0.1])
+    assert precision_at_k(y, p, k=0.4) == pytest.approx(0.55)
+
+
+def test_precision_at_k_is_invariant_to_row_order():
+    import numpy as np
+    from utils import precision_at_k
+
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 500)
+    p = np.round(rng.random(500), 1)             # heavy ties
+    base = precision_at_k(y, p, k=0.1)
+    for seed in range(5):
+        perm = np.random.default_rng(seed).permutation(500)
+        assert precision_at_k(y[perm], p[perm], k=0.1) == pytest.approx(base)
+        assert precision_at_k(y[::-1], p[::-1], k=0.1) == pytest.approx(base)
+
+
+def test_precision_at_k_all_tied_equals_base_rate_and_no_ties_unchanged():
+    import numpy as np
+    from utils import precision_at_k
+
+    y = np.array([1, 0, 1, 1, 0, 0, 0, 1, 0, 0])
+    assert precision_at_k(y, np.full(10, 0.3), k=0.2) == pytest.approx(y.mean())
+    p = np.linspace(0, 1, 10)                    # distinct scores: plain top-k
+    assert precision_at_k(y, p, k=0.3) == pytest.approx(y[np.argsort(-p)[:3]].mean())
