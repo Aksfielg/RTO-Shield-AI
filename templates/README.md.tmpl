@@ -446,6 +446,8 @@ A scikit-learn `ColumnTransformer` imputes missing values (median for numbers, "
 
 {{ @model_comparison_short }}
 
+{{ @model_significance }}
+
 ### 10.4 Tuning and stability
 
 - **Hyper-parameter search:** `RandomizedSearchCV` with 30 trials over 7 LightGBM hyper-parameters, scored by ROC-AUC with a **time-series cross-validation** (4 expanding folds) on the training set only.
@@ -533,6 +535,10 @@ Tier cutoffs ({{ T.tier_cutoffs.low_max | f4 }} and {{ T.tier_cutoffs.high_min |
 
 {{ @policy_table }}
 
+### Plain-rule baseline
+
+{{ @rule_baseline }}
+
 ### Threshold stability (test)
 
 Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most: {{ @stability_summary }}.
@@ -544,6 +550,10 @@ Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most:
 {{ @per_mode }}
 
 {{ @per_mode_note }}
+
+### Calibration within shipping mode
+
+{{ @per_mode_calibration }}
 
 ### Feature ablation (test)
 
@@ -563,6 +573,8 @@ Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most:
 6. **Scores are clustered.** The calibrated score takes only {{ M.score_clusters.unique_scores_test | int }} distinct values on the test set; {{ M.score_clusters.largest_standard_cluster_share_of_standard | pct1 }} of Standard Class orders share one score. Cutoffs are therefore placed in low-density gaps between clusters.
 7. **Advisory use only.** The score should support human triage. It must not be used to refuse service, discriminate between customers or make automated adverse decisions.
 8. **Impact numbers are what-ifs.** The Impact Simulator uses user-entered costs and success rates; the dataset has no record of real interventions.
+
+**Payment-type proxy.** Every CANCELED / SUSPECTED_FRAUD order is a TRANSFER payment labelled on-time, so the payment features (`Type`, `is_cash`) partly proxy post-dispatch order status (which is never a model input). Dropping them lowers test ROC-AUC from {{ M.type_audit.all_orders.model_a.roc_auc | f4 }} to {{ M.type_audit.all_orders.model_b.roc_auc | f4 }} on all orders (difference {{ M.type_audit.all_orders.delta_roc_auc.point | s4 }}, 95% CI {{ M.type_audit.all_orders.delta_roc_auc.ci | ci4 }}), but only from {{ M.type_audit.cleaned_orders.model_a.roc_auc | f4 }} to {{ M.type_audit.cleaned_orders.model_b.roc_auc | f4 }} on the {{ M.type_audit.cleaned_orders.n | int }} cleaned orders where cancelled/fraud orders are removed (difference {{ M.type_audit.cleaned_orders.delta_roc_auc.point | s4 }}, 95% CI {{ M.type_audit.cleaned_orders.delta_roc_auc.ci | ci4 }}, which includes zero). At equal coverage (the same {{ M.type_audit.equal_coverage.all_orders.k | int }} orders flagged, {{ M.type_audit.equal_coverage.all_orders.flagged_share | pct1 }}), High-tier precision is {{ M.type_audit.equal_coverage.all_orders.model_a.precision | pct1 }} with the payment features versus {{ M.type_audit.equal_coverage.all_orders.model_b.precision | pct1 }} without on all orders, and {{ M.type_audit.equal_coverage.cleaned_orders.model_a.precision | pct1 }} versus {{ M.type_audit.equal_coverage.cleaned_orders.model_b.precision | pct1 }} on cleaned orders. The gain from payment type is therefore consistent with a labelling artifact, not a real payment risk. The model with payment features stays the primary model; every payment-type reason code and chart label in the app carries a dagger (†) with the footnote "Payment-type effects reflect how DataCo labels cancelled/fraud orders (all TRANSFER, all on time), not a real payment risk."
 
 ---
 
@@ -684,15 +696,9 @@ python src/11_render_docs.py          # regenerate README, MODEL_CARD, report_ta
 pytest tests/ -q
 ```
 
-| Test file | What it protects |
-|---|---|
-| `test_no_leakage.py` | Forbidden / post-dispatch / personal columns never reach the model; history features match a brute-force recomputation from past orders only. |
-| `test_pipeline.py` | Chronological splits do not overlap; `score_order` returns valid output; history features contain no future information. |
-| `test_metrics_reporting.py` | Metric functions, bootstrap CIs, batch small-sample rules. |
-| `test_consistency.py` | Docs, app and JSON agree; tiers cover all test orders; flag = High tier; no hand-typed cutoffs in code. |
-| `test_ui_components.py` | Formatting helpers (percentages, money, reasons). |
-| `test_app_pages.py` | Opens **every dashboard page** with Streamlit `AppTest`: no exceptions, no empty cards, no placeholder `$-` values. |
-| `test_imports.py` | All modules import cleanly. |
+The suite has **{{ M.tests.total | int }} automated tests** in {{ M.tests.n_files | int }} files:
+
+{{ @test_table }}
 
 ---
 
@@ -756,7 +762,7 @@ rto_shield_model1/
 | Document | What it is |
 |---|---|
 | `MODEL_CARD.md` | Formal model documentation: intended use, data, evaluation, limitations, ethics. |
-| `docs/VIVA_CHEATSHEET.md` | The 10 numbers to remember, a 5-minute demo script and 15 examiner questions with honest answers. |
+| `docs/VIVA_CHEATSHEET.md` | The 10 numbers to remember, a 5-minute demo script and 18 examiner questions with honest answers. |
 | `outputs/verification_findings.md` | The label-artifact, payment-confound and score-cluster investigation. |
 | `outputs/experiments.md` | Segment-model, alternative-target and cleaned-task experiments (none replaced the final model). |
 | `outputs/sanity_checks.md` | Leakage, reproducibility and provenance checks. |

@@ -1,6 +1,6 @@
 # RTO Shield AI - Model 1: Sanity Checks & Quality Audits
 
-> Generated: 2026-11-12 22:14:41  
+> Generated: 2026-11-24 15:14:05  
 > Pipeline: Final Tuned LightGBM + Isotonic Calibration  
 > Dataset: Constante et al. 2019 (Mendeley Data V5, DOI 10.17632/8gx2fvg2k6.5)  
 

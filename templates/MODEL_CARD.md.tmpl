@@ -75,6 +75,11 @@
 
 {{ @model_comparison_test }}
 
+
+### Are the candidates distinguishable from the final model? (TEST ROC-AUC)
+
+{{ @model_significance }}
+
 ### Final model metrics (TEST)
 
 > **Metric conventions.** {{ @ranking_note }}
@@ -93,11 +98,19 @@
 
 {{ @per_mode_note }}
 
+### Calibration within shipping mode (TEST)
+
+{{ @per_mode_calibration }}
+
 ### Feature ablation (TEST)
 
 {{ @ablation }}
 
 {{ @ablation_verdict }}
+
+### Payment-type proxy
+
+**Payment-type proxy.** Every CANCELED / SUSPECTED_FRAUD order is a TRANSFER payment labelled on-time, so the payment features (`Type`, `is_cash`) partly proxy post-dispatch order status (which is never a model input). Dropping them lowers test ROC-AUC from {{ M.type_audit.all_orders.model_a.roc_auc | f4 }} to {{ M.type_audit.all_orders.model_b.roc_auc | f4 }} on all orders (difference {{ M.type_audit.all_orders.delta_roc_auc.point | s4 }}, 95% CI {{ M.type_audit.all_orders.delta_roc_auc.ci | ci4 }}), but only from {{ M.type_audit.cleaned_orders.model_a.roc_auc | f4 }} to {{ M.type_audit.cleaned_orders.model_b.roc_auc | f4 }} on the {{ M.type_audit.cleaned_orders.n | int }} cleaned orders where cancelled/fraud orders are removed (difference {{ M.type_audit.cleaned_orders.delta_roc_auc.point | s4 }}, 95% CI {{ M.type_audit.cleaned_orders.delta_roc_auc.ci | ci4 }}, which includes zero). At equal coverage (the same {{ M.type_audit.equal_coverage.all_orders.k | int }} orders flagged, {{ M.type_audit.equal_coverage.all_orders.flagged_share | pct1 }}), High-tier precision is {{ M.type_audit.equal_coverage.all_orders.model_a.precision | pct1 }} with the payment features versus {{ M.type_audit.equal_coverage.all_orders.model_b.precision | pct1 }} without on all orders, and {{ M.type_audit.equal_coverage.cleaned_orders.model_a.precision | pct1 }} versus {{ M.type_audit.equal_coverage.cleaned_orders.model_b.precision | pct1 }} on cleaned orders. The gain from payment type is therefore consistent with a labelling artifact, not a real payment risk. The model with payment features stays the primary model; every payment-type reason code and chart label in the app carries a dagger (†) with the footnote "Payment-type effects reflect how DataCo labels cancelled/fraud orders (all TRANSFER, all on time), not a real payment risk."
 
 ---
 
@@ -122,6 +135,10 @@ Cutoffs are **midpoints of low-density gaps** between calibrated-score clusters 
 ### Policies (TEST)
 
 {{ @policy_table }}
+
+### Plain-rule baseline (TEST)
+
+{{ @rule_baseline }}
 
 ### Threshold stability (TEST, threshold ±0.01 / ±0.02)
 
@@ -184,6 +201,8 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 | **Auditability** | All thresholds, calibration parameters and metrics are saved in `models/` and `outputs/final_metrics.json`; reproducible via `run_all.py` |
 
 ---
+
+**Automated tests:** the repository ships {{ M.tests.total | int }} automated tests (pytest, {{ M.tests.n_files | int }} files) covering leakage, split chronology, metric reporting, document/app consistency, the payment-type disclosure, reproducibility and every dashboard page.
 
 ## 11. Files
 

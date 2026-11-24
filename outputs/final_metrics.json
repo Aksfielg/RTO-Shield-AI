@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-11-12 22:09:44",
+    "generated": "2026-11-24 15:30:27",
     "model_scope": "FINAL tuned LightGBM + isotonic calibration only",
     "sources": [
       "models/thresholds.json",
@@ -297,6 +297,69 @@
       "ece": 0.0182
     }
   ],
+  "model_comparison_significance": {
+    "reference": "final tuned LightGBM (raw scores)",
+    "n_boot": 1000,
+    "delta_definition": "candidate test ROC-AUC minus final test ROC-AUC; paired bootstrap, identical resample indices",
+    "rows": [
+      {
+        "model": "baseline_lr",
+        "label": "Baseline LR",
+        "roc_auc": 0.7290632079261556,
+        "delta": -0.042524133621977045,
+        "ci_lo": -0.048490186131129216,
+        "ci_hi": -0.03653358246333155,
+        "distinguishable": true,
+        "n_boot": 1000,
+        "seed": 7
+      },
+      {
+        "model": "logistic_regression",
+        "label": "Logistic Regression",
+        "roc_auc": 0.7497164452609115,
+        "delta": -0.021870896287221275,
+        "ci_lo": -0.02689198436103344,
+        "ci_hi": -0.016988949548725985,
+        "distinguishable": true,
+        "n_boot": 1000,
+        "seed": 7
+      },
+      {
+        "model": "random_forest",
+        "label": "Random Forest",
+        "roc_auc": 0.7652910387895239,
+        "delta": -0.006296302758608929,
+        "ci_lo": -0.011763451276707176,
+        "ci_hi": -0.0010187426871950715,
+        "distinguishable": true,
+        "n_boot": 1000,
+        "seed": 7
+      },
+      {
+        "model": "xgboost",
+        "label": "XGBoost",
+        "roc_auc": 0.7657601888398538,
+        "delta": -0.005827098609137438,
+        "ci_lo": -0.011185999375584737,
+        "ci_hi": -0.0006988827420617362,
+        "distinguishable": true,
+        "n_boot": 1000,
+        "seed": 7
+      },
+      {
+        "model": "lightgbm",
+        "label": "LightGBM (default)",
+        "roc_auc": 0.7677719713898647,
+        "delta": -0.003815370158267939,
+        "ci_lo": -0.007539895661123694,
+        "ci_hi": 4.040088524386485e-05,
+        "distinguishable": false,
+        "n_boot": 1000,
+        "seed": 7
+      }
+    ],
+    "summary": "LightGBM (default) is not statistically distinguishable from the tuned model (the paired-bootstrap 95% CI of the ROC-AUC difference includes 0); Baseline LR, Logistic Regression, Random Forest and XGBoost are significantly worse. LightGBM was chosen for ranking and calibration, not because it wins significantly."
+  },
   "calibration": {
     "raw": {
       "mean_predicted": [
@@ -345,6 +408,186 @@
       ]
     }
   },
+  "calibration_ef": {
+    "n_bins": 10,
+    "n_boot": 1000,
+    "prevalence": 0.5505424313089323,
+    "binning_note": "equal-frequency bins by rank; ties of the isotonic score are split by the underlying raw score",
+    "calibrated": [
+      {
+        "bin": 1,
+        "n": 987,
+        "mean_predicted": 0.23656632940717925,
+        "observed": 0.24214792299898683,
+        "ci_lo": 0.21479229989868287,
+        "ci_hi": 0.2684903748733536
+      },
+      {
+        "bin": 2,
+        "n": 987,
+        "mean_predicted": 0.3741703955818261,
+        "observed": 0.342451874366768,
+        "ci_lo": 0.3130699088145897,
+        "ci_hi": 0.3718591691995947
+      },
+      {
+        "bin": 3,
+        "n": 987,
+        "mean_predicted": 0.37494284407864653,
+        "observed": 0.4012158054711246,
+        "ci_lo": 0.3708206686930091,
+        "ci_hi": 0.4326241134751773
+      },
+      {
+        "bin": 4,
+        "n": 986,
+        "mean_predicted": 0.3865603955025354,
+        "observed": 0.38640973630831643,
+        "ci_lo": 0.35494421906693713,
+        "ci_hi": 0.4158468559837728
+      },
+      {
+        "bin": 5,
+        "n": 986,
+        "mean_predicted": 0.399057344854674,
+        "observed": 0.4127789046653144,
+        "ci_lo": 0.38336713995943206,
+        "ci_hi": 0.4432302231237322
+      },
+      {
+        "bin": 6,
+        "n": 986,
+        "mean_predicted": 0.399057344854674,
+        "observed": 0.40060851926977686,
+        "ci_lo": 0.3711713995943205,
+        "ci_hi": 0.43103448275862066
+      },
+      {
+        "bin": 7,
+        "n": 986,
+        "mean_predicted": 0.6341133020044768,
+        "observed": 0.652129817444219,
+        "ci_lo": 0.6227180527383367,
+        "ci_hi": 0.6815669371196754
+      },
+      {
+        "bin": 8,
+        "n": 986,
+        "mean_predicted": 0.7993897787948131,
+        "observed": 0.7900608519269777,
+        "ci_lo": 0.7647058823529411,
+        "ci_hi": 0.8164300202839757
+      },
+      {
+        "bin": 9,
+        "n": 986,
+        "mean_predicted": 0.8517854756195751,
+        "observed": 0.8782961460446247,
+        "ci_lo": 0.8580121703853956,
+        "ci_hi": 0.8985801217038539
+      },
+      {
+        "bin": 10,
+        "n": 986,
+        "mean_predicted": 1.0,
+        "observed": 1.0,
+        "ci_lo": 1.0,
+        "ci_hi": 1.0
+      }
+    ],
+    "raw": [
+      {
+        "bin": 1,
+        "n": 987,
+        "mean_predicted": 0.32127301603822783,
+        "observed": 0.24214792299898683,
+        "ci_lo": 0.21479229989868287,
+        "ci_hi": 0.2684903748733536
+      },
+      {
+        "bin": 2,
+        "n": 987,
+        "mean_predicted": 0.3945694579677488,
+        "observed": 0.342451874366768,
+        "ci_lo": 0.3130699088145897,
+        "ci_hi": 0.3718591691995947
+      },
+      {
+        "bin": 3,
+        "n": 987,
+        "mean_predicted": 0.4205491730820493,
+        "observed": 0.4012158054711246,
+        "ci_lo": 0.3708206686930091,
+        "ci_hi": 0.4326241134751773
+      },
+      {
+        "bin": 4,
+        "n": 986,
+        "mean_predicted": 0.4273587145496212,
+        "observed": 0.38640973630831643,
+        "ci_lo": 0.35494421906693713,
+        "ci_hi": 0.4158468559837728
+      },
+      {
+        "bin": 5,
+        "n": 986,
+        "mean_predicted": 0.43175264368038674,
+        "observed": 0.4127789046653144,
+        "ci_lo": 0.38336713995943206,
+        "ci_hi": 0.4432302231237322
+      },
+      {
+        "bin": 6,
+        "n": 986,
+        "mean_predicted": 0.4380881154915829,
+        "observed": 0.40060851926977686,
+        "ci_lo": 0.3711713995943205,
+        "ci_hi": 0.43103448275862066
+      },
+      {
+        "bin": 7,
+        "n": 986,
+        "mean_predicted": 0.639317962419308,
+        "observed": 0.652129817444219,
+        "ci_lo": 0.6227180527383367,
+        "ci_hi": 0.6815669371196754
+      },
+      {
+        "bin": 8,
+        "n": 986,
+        "mean_predicted": 0.7543247005696968,
+        "observed": 0.7900608519269777,
+        "ci_lo": 0.7647058823529411,
+        "ci_hi": 0.8164300202839757
+      },
+      {
+        "bin": 9,
+        "n": 986,
+        "mean_predicted": 0.7978923817731397,
+        "observed": 0.8782961460446247,
+        "ci_lo": 0.8580121703853956,
+        "ci_hi": 0.8985801217038539
+      },
+      {
+        "bin": 10,
+        "n": 986,
+        "mean_predicted": 0.9085069392499204,
+        "observed": 1.0,
+        "ci_lo": 1.0,
+        "ci_hi": 1.0
+      }
+    ],
+    "ece": {
+      "raw_equal_width": 0.04951687724002396,
+      "raw_equal_frequency": 0.046843337780540804,
+      "calibrated_equal_width": 0.006658589022741982,
+      "calibrated_equal_frequency": 0.013287662909379048
+    },
+    "brier_skill_score": {
+      "raw": 0.2481375516519876,
+      "calibrated": 0.2601719318784216
+    }
+  },
   "tiers": {
     "cutoffs": {
       "low_max": 0.4657,
@@ -357,7 +600,9 @@
         "late_orders": 2229,
         "late_rate": 0.36517038007863695,
         "late_captured": 0.41049723756906076,
-        "mean_score": 0.3628919805078944
+        "mean_score": 0.3628919805078944,
+        "late_rate_ci_lo": 0.35318006438935345,
+        "late_rate_ci_hi": 0.37733029494177894
       },
       "Medium": {
         "orders": 554,
@@ -365,7 +610,9 @@
         "late_orders": 369,
         "late_rate": 0.6660649819494585,
         "late_captured": 0.06795580110497237,
-        "mean_score": 0.6402453941860198
+        "mean_score": 0.6402453941860198,
+        "late_rate_ci_lo": 0.6257682064119021,
+        "late_rate_ci_hi": 0.704074613784692
       },
       "High": {
         "orders": 3205,
@@ -373,7 +620,9 @@
         "late_orders": 2832,
         "late_rate": 0.883619344773791,
         "late_captured": 0.5215469613259669,
-        "mean_score": 0.8768989977904675
+        "mean_score": 0.8768989977904675,
+        "late_rate_ci_lo": 0.8720550930406654,
+        "late_rate_ci_hi": 0.8942650980801905
       }
     },
     "validation": {
@@ -383,7 +632,9 @@
         "late_orders": 2163,
         "late_rate": 0.35787557908669754,
         "late_captured": 0.4024186046511628,
-        "mean_score": 0.35787557908669754
+        "mean_score": 0.35787557908669754,
+        "late_rate_ci_lo": 0.34588394222020263,
+        "late_rate_ci_hi": 0.37004776470403883
       },
       "Medium": {
         "orders": 600,
@@ -391,7 +642,9 @@
         "late_orders": 382,
         "late_rate": 0.6366666666666667,
         "late_captured": 0.07106976744186047,
-        "mean_score": 0.6366666666666667
+        "mean_score": 0.6366666666666667,
+        "late_rate_ci_lo": 0.597425907290115,
+        "late_rate_ci_hi": 0.6741685610994735
       },
       "High": {
         "orders": 3219,
@@ -399,7 +652,9 @@
         "late_orders": 2830,
         "late_rate": 0.8791550170860516,
         "late_captured": 0.5265116279069767,
-        "mean_score": 0.8791550170860516
+        "mean_score": 0.8791550170860516,
+        "late_rate_ci_lo": 0.8674408225716911,
+        "late_rate_ci_hi": 0.8899653456154383
       }
     },
     "descriptions": {
@@ -517,6 +772,149 @@
     "cost_2_1": 0.332,
     "cost_3_1": 0.2419,
     "cost_5_1": 0.01
+  },
+  "rule_baseline": {
+    "definition": "Flag First Class and Second Class orders, plus Same Day orders placed at or after 12:00 (order hour >= 12); flag nothing else.",
+    "train_evidence": {
+      "orders": 46026,
+      "late_rate_by_mode": {
+        "First Class": {
+          "orders": 7049,
+          "late_rate": 0.9550290821393106
+        },
+        "Same Day": {
+          "orders": 2478,
+          "late_rate": 0.44390637610976597
+        },
+        "Second Class": {
+          "orders": 8929,
+          "late_rate": 0.7685071116586404
+        },
+        "Standard Class": {
+          "orders": 27570,
+          "late_rate": 0.38262604280014506
+        }
+      },
+      "same_day_before_noon_late_rate": 0.0,
+      "same_day_from_noon_late_rate": 0.9598603839441536
+    },
+    "rule": {
+      "flagged_orders": 3723,
+      "flagged_share": 0.37747135759910777,
+      "precision": 0.8562986838571045,
+      "recall": 0.5871086556169429,
+      "f1": 0.6966022069266907,
+      "accuracy": 0.7184426645037006,
+      "balanced_accuracy": 0.7332114448849434,
+      "specificity": 0.8793142341529439,
+      "mcc": 0.478627813325498
+    },
+    "high_tier": {
+      "flagged_orders": 3205,
+      "flagged_share": 0.3249518402108892,
+      "precision": 0.883619344773791,
+      "recall": 0.5215469613259669,
+      "f1": 0.6559351476548929,
+      "accuracy": 0.6987731927405455,
+      "balanced_accuracy": 0.7187026482695704,
+      "specificity": 0.915858335213174,
+      "mcc": 0.46456544762053803
+    },
+    "model_top_k": {
+      "k": 3723,
+      "flagged_orders": 3723,
+      "flagged_share": 0.37747135759910777,
+      "precision": 0.8562986838571045,
+      "recall": 0.5871086556169429,
+      "f1": 0.6966022069266907,
+      "accuracy": 0.7184426645037006,
+      "balanced_accuracy": 0.7332114448849434,
+      "specificity": 0.8793142341529439,
+      "mcc": 0.478627813325498
+    },
+    "equal_share_comparison": {
+      "precision_a": 0.8562986838571045,
+      "precision_b": 0.8562986838571045,
+      "recall_a": 0.5871086556169429,
+      "recall_b": 0.5871086556169429,
+      "delta_precision": 0.0,
+      "delta_precision_ci": [
+        0.0,
+        0.0
+      ],
+      "delta_recall": 0.0,
+      "delta_recall_ci": [
+        0.0,
+        0.0
+      ],
+      "n_boot": 1000,
+      "seed": 1,
+      "k": 3723,
+      "flagged_share": 0.37747135759910777
+    },
+    "high_tier_vs_rule": {
+      "precision_a": 0.883619344773791,
+      "precision_b": 0.8562986838571045,
+      "recall_a": 0.5215469613259669,
+      "recall_b": 0.5871086556169429,
+      "delta_precision": 0.0273206609166865,
+      "delta_precision_ci": [
+        0.021201516404688064,
+        0.033333682670980455
+      ],
+      "delta_recall": -0.06556169429097602,
+      "delta_recall_ci": [
+        -0.0720895450929678,
+        -0.059269926643578476
+      ],
+      "n_boot": 1000,
+      "seed": 1
+    },
+    "top_k_overlap_with_rule": 1.0,
+    "matches_model": true,
+    "verdict": "The plain rule matches the model at the same flagged share (the precision difference is not statistically distinguishable from 0). The model's added value is calibrated probabilities, three tiers, SHAP reasons and the information-level warning, not higher accuracy than a hand-written rule."
+  },
+  "per_mode_calibration": {
+    "flag_gap_pp": 5.0,
+    "rows": [
+      {
+        "mode": "Same Day",
+        "orders": 539,
+        "mean_predicted": 0.45042201189665976,
+        "observed": 0.5027829313543599,
+        "gap_pp": -5.236091945770016,
+        "ece": 0.05236091945770004,
+        "flagged": true
+      },
+      {
+        "mode": "First Class",
+        "orders": 1513,
+        "mean_predicted": 0.955120937505764,
+        "observed": 0.9504296100462657,
+        "gap_pp": 0.46913274594982957,
+        "ece": 0.018031093726224037,
+        "flagged": false
+      },
+      {
+        "mode": "Second Class",
+        "orders": 1923,
+        "mean_predicted": 0.7589696624591068,
+        "observed": 0.7691107644305772,
+        "gap_pp": -1.0141101971470445,
+        "ece": 0.010141101971470367,
+        "flagged": false
+      },
+      {
+        "mode": "Standard Class",
+        "orders": 5888,
+        "mean_predicted": 0.37922482702960386,
+        "observed": 0.38077445652173914,
+        "gap_pp": -0.15496294921352738,
+        "ece": 0.0042951043909232765,
+        "flagged": false
+      }
+    ],
+    "note": "gap = mean predicted minus observed late rate, calibrated scores; reported only, no per-mode recalibration"
   },
   "stability": {
     "rows": [
@@ -949,6 +1347,48 @@
       "pr_auc": 0.3983399266636185,
       "pr_auc_lift": 1.0461309046366574,
       "flag": "limited"
+    }
+  ],
+  "per_mode_flagging": [
+    {
+      "mode": "Same Day",
+      "orders": 539,
+      "flagged": 286,
+      "late": 271,
+      "caught": 270,
+      "missed": 1,
+      "recall": 0.996309963099631,
+      "share_of_missed": 0.00038491147036181676
+    },
+    {
+      "mode": "First Class",
+      "orders": 1513,
+      "flagged": 1513,
+      "late": 1438,
+      "caught": 1438,
+      "missed": 0,
+      "recall": 1.0,
+      "share_of_missed": 0.0
+    },
+    {
+      "mode": "Second Class",
+      "orders": 1923,
+      "flagged": 1406,
+      "late": 1479,
+      "caught": 1124,
+      "missed": 355,
+      "recall": 0.7599729546991211,
+      "share_of_missed": 0.13664357197844496
+    },
+    {
+      "mode": "Standard Class",
+      "orders": 5888,
+      "flagged": 0,
+      "late": 2242,
+      "caught": 0,
+      "missed": 2242,
+      "recall": 0.0,
+      "share_of_missed": 0.8629715165511932
     }
   ],
   "same_day_noon_rule": {
@@ -1454,5 +1894,336 @@
         "segment_params": "final-model params"
       }
     }
+  },
+  "type_audit": {
+    "description": "Model A = final model (with payment features); Model B = same tuned hyper-parameters, TRAIN only, without payment features.",
+    "drop_list": {
+      "source": "06_robustness.ABLATION_SPECS['No payment/is_cash']",
+      "dropped_features": [
+        "Type",
+        "is_cash"
+      ],
+      "kept_categorical": [
+        "Shipping_Mode",
+        "Market",
+        "Order_Region",
+        "Order_Country",
+        "Customer_Segment",
+        "Department_Name",
+        "main_item_category"
+      ],
+      "kept_numeric": [
+        "Days_for_shipment_scheduled",
+        "order_value",
+        "n_items",
+        "avg_discount_rate",
+        "value_per_item",
+        "is_weekend",
+        "is_night_order",
+        "high_discount_flag",
+        "n_distinct_categories",
+        "order_month",
+        "order_dow",
+        "order_hour",
+        "customer_prev_orders",
+        "customer_prev_late_rate",
+        "country_prev_orders",
+        "country_prev_late_rate",
+        "customer_prev_cash_share",
+        "days_since_prev_order"
+      ]
+    },
+    "hyperparameters": {
+      "learning_rate": 0.009304746441371432,
+      "max_depth": 4,
+      "n_estimators": 200,
+      "colsample_bytree": 0.5866823267538861,
+      "subsample": 0.6039708314340944,
+      "min_child_weight": 10,
+      "reg_lambda": 0.5019072833961319
+    },
+    "n_bootstrap": 1000,
+    "min_useful_delta": 0.005,
+    "all_orders": {
+      "n": 9863,
+      "prevalence": 0.5505424313089323,
+      "model_a": {
+        "roc_auc": 0.7715873415481329,
+        "roc_auc_ci": [
+          0.7625083633677804,
+          0.7798400410340799
+        ],
+        "pr_auc": 0.8361796910036292,
+        "pr_auc_ci": [
+          0.8284337850169651,
+          0.8442105596681221
+        ]
+      },
+      "model_b": {
+        "roc_auc": 0.7551234484045035,
+        "roc_auc_ci": [
+          0.7455295154560339,
+          0.7637114541627362
+        ],
+        "pr_auc": 0.8162443071553795,
+        "pr_auc_ci": [
+          0.8062753335535274,
+          0.8263672201272473
+        ]
+      },
+      "delta_roc_auc": {
+        "point": 0.016463893143629393,
+        "ci": [
+          0.010529409978473537,
+          0.022221702870939435
+        ]
+      },
+      "delta_pr_auc": {
+        "point": 0.019935383848249666,
+        "ci": [
+          0.015347469273565537,
+          0.02440455363061848
+        ]
+      }
+    },
+    "cleaned_orders": {
+      "n": 9437,
+      "prevalence": 0.5753947228992264,
+      "model_a": {
+        "roc_auc": 0.775008399205626,
+        "roc_auc_ci": [
+          0.7656330131465903,
+          0.7842979177214465
+        ],
+        "pr_auc": 0.8562635755888506,
+        "pr_auc_ci": [
+          0.8486522108648686,
+          0.8638146465863022
+        ]
+      },
+      "model_b": {
+        "roc_auc": 0.7718339590798975,
+        "roc_auc_ci": [
+          0.7626029290748654,
+          0.7807797261933818
+        ],
+        "pr_auc": 0.8554430750931012,
+        "pr_auc_ci": [
+          0.8479661662233571,
+          0.8630197038667493
+        ]
+      },
+      "delta_roc_auc": {
+        "point": 0.0031744401257285393,
+        "ci": [
+          -0.0030511883017254717,
+          0.009063744662104703
+        ]
+      },
+      "delta_pr_auc": {
+        "point": 0.0008205004957493323,
+        "ci": [
+          -0.0023919652581574275,
+          0.003807957633719727
+        ]
+      },
+      "removed_orders": 426
+    },
+    "tiers": {
+      "model_a": {
+        "cutoffs": {
+          "low_max": 0.4657,
+          "high_min": 0.7423
+        },
+        "cutoff_verified_on_test": {
+          "in_gap": true,
+          "big_clusters_split": 0,
+          "share_within_0.02": 0.0
+        },
+        "all_orders": {
+          "precision": 0.883619344773791,
+          "recall": 0.5215469613259669,
+          "flagged_share": 0.3249518402108892,
+          "flagged_orders": 3205
+        },
+        "cleaned_orders": {
+          "precision": 0.9094412331406551,
+          "recall": 0.5215469613259669,
+          "flagged_share": 0.3299777471654127,
+          "flagged_orders": 3114
+        }
+      },
+      "model_b": {
+        "cutoffs": {
+          "low_max": 0.45,
+          "high_min": 0.8509
+        },
+        "cutoff_verified_on_test": {
+          "in_gap": true,
+          "big_clusters_split": 0,
+          "share_within_0.02": 0.0
+        },
+        "all_orders": {
+          "precision": 0.9491137793024585,
+          "recall": 0.30570902394106814,
+          "flagged_share": 0.177329412957518,
+          "flagged_orders": 1749
+        },
+        "cleaned_orders": {
+          "precision": 1.0,
+          "recall": 0.30570902394106814,
+          "flagged_share": 0.17590335911836388,
+          "flagged_orders": 1660
+        },
+        "status": "ok"
+      }
+    },
+    "equal_coverage": {
+      "all_orders": {
+        "k": 3205,
+        "n": 9863,
+        "flagged_share": 0.3249518402108892,
+        "model_a": {
+          "precision": 0.883619344773791,
+          "recall": 0.5215469613259669
+        },
+        "model_b": {
+          "precision": 0.8705148205928237,
+          "recall": 0.5138121546961326
+        },
+        "delta_precision": {
+          "point": 0.013104524180967303,
+          "ci": [
+            0.004583716823799042,
+            0.02086120381315881
+          ]
+        },
+        "delta_recall": {
+          "point": 0.007734806629834279,
+          "ci": [
+            -0.001120410165195548,
+            0.016367518570468025
+          ]
+        }
+      },
+      "cleaned_orders": {
+        "k": 3114,
+        "n": 9437,
+        "flagged_share": 0.3299777471654127,
+        "model_a": {
+          "precision": 0.9094412331406551,
+          "recall": 0.5215469613259669
+        },
+        "model_b": {
+          "precision": 0.9113680154142582,
+          "recall": 0.5226519337016574
+        },
+        "delta_precision": {
+          "point": -0.0019267822736031004,
+          "ci": [
+            -0.008482028989784918,
+            0.004528577681694166
+          ]
+        },
+        "delta_recall": {
+          "point": -0.001104972375690516,
+          "ci": [
+            -0.009558423316293193,
+            0.007059880110435085
+          ]
+        }
+      }
+    },
+    "model_a_refit_train_only_roc_auc_all": 0.7715873415481329,
+    "cleaned_delta_ci_includes_zero": true,
+    "cleaned_delta_below_min": true,
+    "stop_and_review": true
+  },
+  "tests": {
+    "total": 143,
+    "n_files": 16,
+    "source": "pytest --collect-only -q tests/",
+    "by_file": [
+      {
+        "file": "test_app_pages.py",
+        "tests": 26,
+        "description": "Opens every dashboard page with Streamlit AppTest: no exceptions, no empty cards, no negative-money formatting glitches, plus page-specific content checks."
+      },
+      {
+        "file": "test_auc_ceiling.py",
+        "tests": 3,
+        "description": "Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance."
+      },
+      {
+        "file": "test_consistency.py",
+        "tests": 10,
+        "description": "Docs, app and final_metrics.json agree; tiers cover every test order; flagged equals the High tier; no cutoff is hand-typed in code."
+      },
+      {
+        "file": "test_dashboard_fixes.py",
+        "tests": 12,
+        "description": "Regression tests for the dashboard fixes: preset widget state, dynamic Impact caption, per-mode flagging totals, chart label room, display-only country names and toolbar mode."
+      },
+      {
+        "file": "test_imports.py",
+        "tests": 1,
+        "description": "Smoke test: every project module imports and its key functions are callable."
+      },
+      {
+        "file": "test_metrics_reporting.py",
+        "tests": 9,
+        "description": "Metric functions, bootstrap confidence intervals and the batch small-sample rules."
+      },
+      {
+        "file": "test_no_leakage.py",
+        "tests": 2,
+        "description": "Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only."
+      },
+      {
+        "file": "test_no_stale_text.py",
+        "tests": 22,
+        "description": "Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder."
+      },
+      {
+        "file": "test_pipeline.py",
+        "tests": 4,
+        "description": "Chronological splits do not overlap, scoring returns valid output, and history features contain no future information."
+      },
+      {
+        "file": "test_reproducibility.py",
+        "tests": 3,
+        "description": "Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores."
+      },
+      {
+        "file": "test_rigour.py",
+        "tests": 10,
+        "description": "Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs."
+      },
+      {
+        "file": "test_test_catalog.py",
+        "tests": 4,
+        "description": "The published test count equals the live pytest collection and every document and the app quote that same total."
+      },
+      {
+        "file": "test_type_audit.py",
+        "tests": 5,
+        "description": "Payment-type audit block, dagger on payment-type reasons and charts, and no hard-coded audit numbers in the UI or templates."
+      },
+      {
+        "file": "test_type_disclosure.py",
+        "tests": 5,
+        "description": "The payment-type proxy is disclosed on Home, Robustness and Limitations, and the audit block and dagger are present."
+      },
+      {
+        "file": "test_ui_components.py",
+        "tests": 16,
+        "description": "Formatting helpers: percentages, money, signed differences and reason filtering."
+      },
+      {
+        "file": "test_ui_state.py",
+        "tests": 11,
+        "description": "Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders."
+      }
+    ]
   }
 }

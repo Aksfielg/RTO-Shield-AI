@@ -448,13 +448,23 @@ A scikit-learn `ColumnTransformer` imputes missing values (median for numbers, "
 | XGBoost | Gradient boosting benchmark. |
 | **LightGBM** | Gradient boosting; **the chosen model** after tuning. |
 
-| Model | Val ROC-AUC | Test ROC-AUC | Test PR-AUC | Test F1 | Test Brier |
-|---|---|---|---|---|---|
-| Baseline LR (shipping+days) | 0.7276 | 0.7291 | 0.7503 | 0.658 | 0.1965 |
-| Logistic Regression | 0.7412 | 0.7497 | 0.8200 | 0.674 | 0.1949 |
-| Random Forest | 0.7626 | 0.7653 | 0.8312 | 0.705 | 0.1882 |
-| XGBoost | 0.7626 | 0.7658 | 0.8351 | 0.708 | 0.1864 |
-| LightGBM (default) | 0.7638 | 0.7678 | 0.8354 | 0.696 | 0.1833 |
+| Model | Val ROC-AUC | Test ROC-AUC | Test PR-AUC | Test F1 | Test Brier | Delta vs final (95% CI) | Distinguishable? |
+|---|---|---|---|---|---|---|---|
+| Baseline LR (shipping+days) | 0.7276 | 0.7291 | 0.7503 | 0.658 | 0.1965 | -0.0425 [-0.0485, -0.0365] | Yes |
+| Logistic Regression | 0.7412 | 0.7497 | 0.8200 | 0.674 | 0.1949 | -0.0219 [-0.0269, -0.0170] | Yes |
+| Random Forest | 0.7626 | 0.7653 | 0.8312 | 0.705 | 0.1882 | -0.0063 [-0.0118, -0.0010] | Yes |
+| XGBoost | 0.7626 | 0.7658 | 0.8351 | 0.708 | 0.1864 | -0.0058 [-0.0112, -0.0007] | Yes |
+| LightGBM (default) | 0.7638 | 0.7678 | 0.8354 | 0.696 | 0.1833 | -0.0038 [-0.0075, +0.0000] | No |
+
+| Model | Test ROC-AUC | Delta vs final (95% CI) | Distinguishable? |
+|---|---|---|---|
+| Baseline LR | 0.7291 | -0.0425 [-0.0485, -0.0365] | Yes |
+| Logistic Regression | 0.7497 | -0.0219 [-0.0269, -0.0170] | Yes |
+| Random Forest | 0.7653 | -0.0063 [-0.0118, -0.0010] | Yes |
+| XGBoost | 0.7658 | -0.0058 [-0.0112, -0.0007] | Yes |
+| LightGBM (default) | 0.7678 | -0.0038 [-0.0075, +0.0000] | No |
+
+Delta = candidate test ROC-AUC minus final test ROC-AUC; paired bootstrap, identical resample indices (1,000 resamples). LightGBM (default) is not statistically distinguishable from the tuned model (the paired-bootstrap 95% CI of the ROC-AUC difference includes 0); Baseline LR, Logistic Regression, Random Forest and XGBoost are significantly worse. LightGBM was chosen for ranking and calibration, not because it wins significantly.
 
 ### 10.4 Tuning and stability
 
@@ -553,17 +563,21 @@ Beyond training, the pipeline checks the model's own claims: a **label-shuffle t
 | Metric (TEST, final tuned model) | Before calibration (raw) | After isotonic calibration |
 |---|---|---|
 | Brier score | 0.1860 | 0.1831 |
-| ECE | 0.0495 | 0.0067 |
+| Brier skill score (1 - Brier / (p(1-p)), p = test prevalence) | 0.2481 | 0.2602 |
+| ECE, 10 equal-width bins | 0.0495 | 0.0067 |
+| ECE, 10 equal-frequency bins | 0.0468 | 0.0133 |
+
+ECE is a size-weighted average, so a few small bins can sit well off the diagonal. Equal-frequency bins by rank; ties of the isotonic score are split by the underlying raw score.
 
 ### Risk tiers
 
 Tier cutoffs (0.4657 and 0.7423) are midpoints of low-density gaps between calibrated-score clusters, selected on validation scores only and verified on test. **Flagged = High tier.**
 
-| Tier | Score range | Test orders | Share | Late rate | Late captured | Suggested handling |
-|---|---|---|---|---|---|---|
-| Low | score < 0.4657 | 6,104 | 61.9% | 36.5% | 41.0% | Standard dispatch with routine monitoring. |
-| Medium | 0.4657 <= score < 0.7423 | 554 | 5.6% | 66.6% | 6.8% | Monitor the carrier pickup SLA. |
-| High | score >= 0.7423 | 3,205 | 32.5% | 88.4% | 52.2% | Operational flag: review routing and confirm proactively. |
+| Tier | Score range | Test orders | Share | Late rate | Late rate 95% CI (Wilson) | Late captured | Suggested handling |
+|---|---|---|---|---|---|---|---|
+| Low | score < 0.4657 | 6,104 | 61.9% | 36.5% | [35.3%, 37.7%] | 41.0% | Standard dispatch with routine monitoring. |
+| Medium | 0.4657 <= score < 0.7423 | 554 | 5.6% | 66.6% | [62.6%, 70.4%] | 6.8% | Monitor the carrier pickup SLA. |
+| High | score >= 0.7423 | 3,205 | 32.5% | 88.4% | [87.2%, 89.4%] | 52.2% | Operational flag: review routing and confirm proactively. |
 
 - **Low** - Lower risk: 37% of these orders were late in held-out test data (overall: 55%).
 - **Medium** - Elevated risk: 67% of these orders were late in held-out test data (overall: 55%).
@@ -578,6 +592,18 @@ Tier cutoffs (0.4657 and 0.7423) are midpoints of low-density gaps between calib
 | Precision >= 0.80 | 0.4657 | 38.11% (3,759) | 0.8516 | 0.5895 | 0.6967 | 0.7174 | 0.7318 | 0.8741 | 0.4749 |
 | Max-F1 | 0.3538 | 89.78% (8,855) | 0.5855 | 0.9549 | 0.7259 | 0.6031 | 0.5635 | 0.1721 | 0.2086 |
 | Cost-minimising (FN=2xFP) | 0.3320 | 92.21% (9,095) | 0.5777 | 0.9676 | 0.7234 | 0.5927 | 0.5506 | 0.1335 | 0.1877 |
+
+### Plain-rule baseline
+
+**Rule (from TRAIN-period findings only, nothing tuned on test):** Flag First Class and Second Class orders, plus Same Day orders placed at or after 12:00 (order hour >= 12); flag nothing else. Train late rates: First Class 95.5%, Same Day 44.4%, Second Class 76.9%, Standard Class 38.3%; Same Day before 12:00 0.0%, from 12:00 96.0%.
+
+| Policy (TEST) | Flagged | Precision | Recall | F1 | MCC |
+|---|---|---|---|---|---|
+| Plain rule | 37.7% (3,723) | 0.8563 | 0.5871 | 0.6966 | 0.4786 |
+| Model top-3,723 by raw score (same flagged share) | 37.7% (3,723) | 0.8563 | 0.5871 | 0.6966 | 0.4786 |
+| Model High tier | 32.5% (3,205) | 0.8836 | 0.5215 | 0.6559 | 0.4646 |
+
+At the same flagged share (37.7%, 3,723 orders) the model's precision minus the rule's is +0.0000 (paired-bootstrap 95% CI [+0.0000, +0.0000]); recall 0.5871 vs 0.5871. 100.0% of the model's top-3,723 orders are also flagged by the rule (the two flag exactly the same orders, so the paired difference is 0 by construction). The plain rule matches the model at the same flagged share (the precision difference is not statistically distinguishable from 0). The model's added value is calibrated probabilities, three tiers, SHAP reasons and the information-level warning, not higher accuracy than a hand-written rule.
 
 ### Threshold stability (test)
 
@@ -612,6 +638,17 @@ Shifting each threshold by ±0.01 and ±0.02 moves the flagged share by at most:
 
 Signal = **limited** when the ROC-AUC 95% bootstrap CI lower bound is below 0.55 (which also covers any CI that includes 0.5); otherwise informative. Limited modes: Second Class, Standard Class. PR-AUC lift = PR-AUC divided by the mode's prevalence (1.0x = no better than the base rate; a mode with very high prevalence cannot show much lift).
 
+### Calibration within shipping mode
+
+| Shipping mode | Test orders | Mean predicted | Observed late rate | Gap (predicted - observed) | ECE (within mode) | Flag (gap > 5 pp) |
+|---|---|---|---|---|---|---|
+| Same Day | 539 | 45.0% | 50.3% | -5.24 pp | 0.0524 | above 5 pp |
+| First Class | 1,513 | 95.5% | 95.0% | +0.47 pp | 0.0180 | within tolerance |
+| Second Class | 1,923 | 75.9% | 76.9% | -1.01 pp | 0.0101 | within tolerance |
+| Standard Class | 5,888 | 37.9% | 38.1% | -0.15 pp | 0.0043 | within tolerance |
+
+Same Day exceeds a 5 pp gap. Reported only; no per-mode recalibration.
+
 ### Feature ablation (test)
 
 | Feature subset | # feat. | ROC-AUC | ROC-AUC 95% CI | PR-AUC | Brier | Own thr. | F1 | Precision | Recall | Accuracy | Bal. acc. | Spec. | MCC | Delta ROC-AUC vs all [95% CI] |
@@ -637,6 +674,8 @@ Threshold metrics use each ablated model's OWN max-F1 threshold chosen on valida
 6. **Scores are clustered.** The calibrated score takes only 41 distinct values on the test set; 38.0% of Standard Class orders share one score. Cutoffs are therefore placed in low-density gaps between clusters.
 7. **Advisory use only.** The score should support human triage. It must not be used to refuse service, discriminate between customers or make automated adverse decisions.
 8. **Impact numbers are what-ifs.** The Impact Simulator uses user-entered costs and success rates; the dataset has no record of real interventions.
+
+**Payment-type proxy.** Every CANCELED / SUSPECTED_FRAUD order is a TRANSFER payment labelled on-time, so the payment features (`Type`, `is_cash`) partly proxy post-dispatch order status (which is never a model input). Dropping them lowers test ROC-AUC from 0.7716 to 0.7551 on all orders (difference +0.0165, 95% CI [0.0105, 0.0222]), but only from 0.7750 to 0.7718 on the 9,437 cleaned orders where cancelled/fraud orders are removed (difference +0.0032, 95% CI [-0.0031, 0.0091], which includes zero). At equal coverage (the same 3,205 orders flagged, 32.5%), High-tier precision is 88.4% with the payment features versus 87.1% without on all orders, and 90.9% versus 91.1% on cleaned orders. The gain from payment type is therefore consistent with a labelling artifact, not a real payment risk. The model with payment features stays the primary model; every payment-type reason code and chart label in the app carries a dagger (†) with the footnote "Payment-type effects reflect how DataCo labels cancelled/fraud orders (all TRANSFER, all on time), not a real payment risk."
 
 ---
 
@@ -758,15 +797,27 @@ python src/11_render_docs.py          # regenerate README, MODEL_CARD, report_ta
 pytest tests/ -q
 ```
 
-| Test file | What it protects |
-|---|---|
-| `test_no_leakage.py` | Forbidden / post-dispatch / personal columns never reach the model; history features match a brute-force recomputation from past orders only. |
-| `test_pipeline.py` | Chronological splits do not overlap; `score_order` returns valid output; history features contain no future information. |
-| `test_metrics_reporting.py` | Metric functions, bootstrap CIs, batch small-sample rules. |
-| `test_consistency.py` | Docs, app and JSON agree; tiers cover all test orders; flag = High tier; no hand-typed cutoffs in code. |
-| `test_ui_components.py` | Formatting helpers (percentages, money, reasons). |
-| `test_app_pages.py` | Opens **every dashboard page** with Streamlit `AppTest`: no exceptions, no empty cards, no placeholder `$-` values. |
-| `test_imports.py` | All modules import cleanly. |
+The suite has **143 automated tests** in 16 files:
+
+| Test file | Tests | What it protects |
+|---|---|---|
+| `test_app_pages.py` | 26 | Opens every dashboard page with Streamlit AppTest: no exceptions, no empty cards, no negative-money formatting glitches, plus page-specific content checks. |
+| `test_auc_ceiling.py` | 3 | Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance. |
+| `test_consistency.py` | 10 | Docs, app and final_metrics.json agree; tiers cover every test order; flagged equals the High tier; no cutoff is hand-typed in code. |
+| `test_dashboard_fixes.py` | 12 | Regression tests for the dashboard fixes: preset widget state, dynamic Impact caption, per-mode flagging totals, chart label room, display-only country names and toolbar mode. |
+| `test_imports.py` | 1 | Smoke test: every project module imports and its key functions are callable. |
+| `test_metrics_reporting.py` | 9 | Metric functions, bootstrap confidence intervals and the batch small-sample rules. |
+| `test_no_leakage.py` | 2 | Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only. |
+| `test_no_stale_text.py` | 22 | Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder. |
+| `test_pipeline.py` | 4 | Chronological splits do not overlap, scoring returns valid output, and history features contain no future information. |
+| `test_reproducibility.py` | 3 | Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores. |
+| `test_rigour.py` | 10 | Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs. |
+| `test_test_catalog.py` | 4 | The published test count equals the live pytest collection and every document and the app quote that same total. |
+| `test_type_audit.py` | 5 | Payment-type audit block, dagger on payment-type reasons and charts, and no hard-coded audit numbers in the UI or templates. |
+| `test_type_disclosure.py` | 5 | The payment-type proxy is disclosed on Home, Robustness and Limitations, and the audit block and dagger are present. |
+| `test_ui_components.py` | 16 | Formatting helpers: percentages, money, signed differences and reason filtering. |
+| `test_ui_state.py` | 11 | Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders. |
+| **Total** | **143** | 16 files, counted with `pytest --collect-only -q tests/` |
 
 ---
 
@@ -830,7 +881,7 @@ rto_shield_model1/
 | Document | What it is |
 |---|---|
 | `MODEL_CARD.md` | Formal model documentation: intended use, data, evaluation, limitations, ethics. |
-| `docs/VIVA_CHEATSHEET.md` | The 10 numbers to remember, a 5-minute demo script and 15 examiner questions with honest answers. |
+| `docs/VIVA_CHEATSHEET.md` | The 10 numbers to remember, a 5-minute demo script and 18 examiner questions with honest answers. |
 | `outputs/verification_findings.md` | The label-artifact, payment-confound and score-cluster investigation. |
 | `outputs/experiments.md` | Segment-model, alternative-target and cleaned-task experiments (none replaced the final model). |
 | `outputs/sanity_checks.md` | Leakage, reproducibility and provenance checks. |

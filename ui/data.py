@@ -14,6 +14,8 @@ Caching
 
 from __future__ import annotations
 
+import re
+
 import json
 import sys
 import threading
@@ -172,6 +174,7 @@ def explain_order(order_dict: dict) -> dict:
     X_enc = predict._transform(_select_feature_cols(df_row, CATEGORICAL_FEATURES, NUMERIC_FEATURES))
     sv = art["explainer"](X_enc)
     labels, values, val_strs = group_shap_values(predict._shap_values(X_enc)[0], art["feat_names"], order_dict)
+    val_strs = [en_country(v) if lbl == "Country" else v for lbl, v in zip(labels, val_strs)]      # display only
     top = int(np.argmax(np.abs(values)))
     return {"labels": labels, "values": values, "val_strs": val_strs,
             "base_value": float(np.ravel(sv.base_values)[0]), "top_driver": labels[top],
@@ -207,3 +210,31 @@ def grouped_importance() -> list[dict]:
 def demo_scores() -> pd.DataFrame | None:
     p = OUTPUTS_DIR / "demo_scores.csv"
     return pd.read_csv(p) if p.exists() else None
+
+
+# ---------------------------------------------------------------------------
+# DISPLAY-ONLY English country names.  DataCo stores Spanish names (and the parquet has lost the accented letters, e.g.
+# "Afganist\ufffdn"); model inputs, parquet values and downloadable CSVs keep the ORIGINAL strings.  The lookup key drops every
+# character outside [a-z0-9 ()-] so a corrupted ("Afganist\ufffdn") and a proper ("Afganist\u00e1n") spelling hit the same entry.
+# ---------------------------------------------------------------------------
+_COUNTRY_PAIRS = "Afganistán=Afghanistan|Albania=Albania|Alemania=Germany|Angola=Angola|Arabia Saudí=Saudi Arabia|Argelia=Algeria|Argentina=Argentina|Armenia=Armenia|Australia=Australia|Austria=Austria|Azerbaiyán=Azerbaijan|Bangladés=Bangladesh|Barbados=Barbados|Baréin=Bahrain|Belice=Belize|Benín=Benin|Bielorrusia=Belarus|Bolivia=Bolivia|Bosnia y Herzegovina=Bosnia and Herzegovina|Botsuana=Botswana|Brasil=Brazil|Bulgaria=Bulgaria|Burkina Faso=Burkina Faso|Burundi=Burundi|Bután=Bhutan|Bélgica=Belgium|Camboya=Cambodia|Camerún=Cameroon|Canada=Canada|Chad=Chad|Chile=Chile|China=China|Chipre=Cyprus|Colombia=Colombia|Corea del Sur=South Korea|Costa Rica=Costa Rica|Costa de Marfil=Ivory Coast|Croacia=Croatia|Cuba=Cuba|Dinamarca=Denmark|Ecuador=Ecuador|Egipto=Egypt|El Salvador=El Salvador|Emiratos Árabes Unidos=United Arab Emirates|Eritrea=Eritrea|Eslovaquia=Slovakia|Eslovenia=Slovenia|España=Spain|Estados Unidos=United States|Estonia=Estonia|Etiopía=Ethiopia|Filipinas=Philippines|Finlandia=Finland|Francia=France|Gabón=Gabon|Georgia=Georgia|Ghana=Ghana|Grecia=Greece|Guadalupe=Guadeloupe|Guatemala=Guatemala|Guayana Francesa=French Guiana|Guinea=Guinea|Guinea Ecuatorial=Equatorial Guinea|Guinea-Bissau=Guinea-Bissau|Guyana=Guyana|Haití=Haiti|Honduras=Honduras|Hong Kong=Hong Kong|Hungría=Hungary|India=India|Indonesia=Indonesia|Irak=Iraq|Irlanda=Ireland|Irán=Iran|Israel=Israel|Italia=Italy|Jamaica=Jamaica|Japón=Japan|Jordania=Jordan|Kazajistán=Kazakhstan|Kenia=Kenya|Kirguistán=Kyrgyzstan|Kuwait=Kuwait|Laos=Laos|Lesoto=Lesotho|Liberia=Liberia|Libia=Libya|Lituania=Lithuania|Luxemburgo=Luxembourg|Líbano=Lebanon|Macedonia=North Macedonia|Madagascar=Madagascar|Malasia=Malaysia|Mali=Mali|Marruecos=Morocco|Martinica=Martinique|Mauritania=Mauritania|Moldavia=Moldova|Mongolia=Mongolia|Montenegro=Montenegro|Mozambique=Mozambique|Myanmar (Birmania)=Myanmar|México=Mexico|Namibia=Namibia|Nepal=Nepal|Nicaragua=Nicaragua|Nigeria=Nigeria|Noruega=Norway|Nueva Zelanda=New Zealand|Níger=Niger|Omán=Oman|Pakistán=Pakistan|Panamá=Panama|Papúa Nueva Guinea=Papua New Guinea|Paraguay=Paraguay|Países Bajos=Netherlands|Perú=Peru|Polonia=Poland|Portugal=Portugal|Qatar=Qatar|Reino Unido=United Kingdom|República Centroafricana=Central African Republic|República Checa=Czech Republic|República Democrática del Congo=Democratic Republic of the Congo|República Dominicana=Dominican Republic|República de Gambia=Gambia|República del Congo=Republic of the Congo|Ruanda=Rwanda|Rumania=Romania|Rusia=Russia|Senegal=Senegal|Serbia=Serbia|Sierra Leona=Sierra Leone|Singapur=Singapore|Siria=Syria|Somalia=Somalia|Sri Lanka=Sri Lanka|Suazilandia=Eswatini|SudAfrica=South Africa|Sudán=Sudan|Sudán del Sur=South Sudan|Suecia=Sweden|Suiza=Switzerland|Surinam=Suriname|Sáhara Occidental=Western Sahara|Tailandia=Thailand|Taiwán=Taiwan|Tanzania=Tanzania|Tayikistán=Tajikistan|Togo=Togo|Trinidad y Tobago=Trinidad and Tobago|Turkmenistán=Turkmenistan|Turquía=Turkey|Túnez=Tunisia|Ucrania=Ukraine|Uganda=Uganda|Uruguay=Uruguay|Uzbekistán=Uzbekistan|Venezuela=Venezuela|Vietnam=Vietnam|Yemen=Yemen|Yibuti=Djibouti|Zambia=Zambia|Zimbabue=Zimbabwe"
+
+
+def _country_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9 ()-]", "", str(name).lower())
+
+
+COUNTRY_EN: dict[str, str] = {_country_key(es): en for es, en in (p.split("=", 1) for p in _COUNTRY_PAIRS.split("|"))}
+
+
+def en_country(name):
+    """English display name for a DataCo country (unchanged when it is already English or unknown)."""
+    return COUNTRY_EN.get(_country_key(name), name) if isinstance(name, str) else name
+
+
+_COUNTRY_REASON = re.compile(r"(Country: )(.+?)( (?:raises|lowers) risk)")
+
+
+def en_text(text):
+    """Translate a country name inside a reason string ('Country: Reino Unido raises risk') for display."""
+    return _COUNTRY_REASON.sub(lambda m: m.group(1) + en_country(m.group(2)) + m.group(3), text) if isinstance(text, str) else text

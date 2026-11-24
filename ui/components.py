@@ -22,6 +22,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from reasons import PAYMENT_LABEL, TYPE_FOOTNOTE, has_payment_reason, reason_text
 from ui import theme
 
 # ---------------------------------------------------------------------------
@@ -140,9 +141,13 @@ def risk_badge_html(tier: str, score: float) -> str:
             f'({fmt_pct(score)})</span>')
 
 
+RISK_SCORE_HELP = ("Isotonic calibration maps many raw scores to the same probability, so different orders can show "
+                   "identical percentages.")
+
+
 def risk_badge(tier: str, score: float) -> None:
     """Tier badge showing the score through ``fmt_pct`` (tier comes from the UNROUNDED score upstream)."""
-    st.markdown(risk_badge_html(tier, score), unsafe_allow_html=True)
+    st.markdown(risk_badge_html(tier, score), unsafe_allow_html=True, help=RISK_SCORE_HELP)
 
 
 _CALLOUTS = {"info": st.info, "note": st.info, "warning": st.warning, "danger": st.error, "success": st.success}
@@ -153,6 +158,60 @@ def callout(kind: str, title: str, body: str = "") -> None:
     """Native Streamlit alert with a bold title; kind in info | note | warning | danger | success."""
     text = f"**{title}**" + (f"\n\n{body}" if body else "")
     _CALLOUTS[kind](text, icon=_CALLOUT_ICONS[kind])
+
+
+# ---------------------------------------------------------------------------
+# Payment-type proxy disclosure (every number comes from final_metrics.json -> type_audit)
+# ---------------------------------------------------------------------------
+def reason_footnote(reasons) -> None:
+    """Show the payment-type footnote under a list of reasons (only when one of them carries the dagger)."""
+    if has_payment_reason(reasons):
+        st.caption(TYPE_FOOTNOTE)
+
+
+def chart_footnote(labels=None, values=None, top_k: int = 6) -> None:
+    """Footnote under a SHAP chart; with labels/values given, only when 'Payment type' is among the plotted bars."""
+    if labels is not None:
+        top = [labels[i] for i in np.argsort(np.abs(values))[::-1][:top_k]]
+        if PAYMENT_LABEL not in top:
+            return
+    st.caption(TYPE_FOOTNOTE)
+
+
+def _signed_ci(d: dict) -> str:
+    return f"{d['point']:+.4f} [{d['ci'][0]:+.4f}, {d['ci'][1]:+.4f}]"
+
+
+def payment_caption(fm: dict) -> str:
+    ta = fm["type_audit"]
+    a, c = ta["all_orders"]["delta_roc_auc"], ta["cleaned_orders"]["delta_roc_auc"]
+    return (f"Payment type adds {a['point']:+.4f} on all orders but only {_signed_ci(c)} on cleaned orders "
+            "(cancelled/fraud removed).")
+
+
+def payment_ablation_box(fm: dict) -> None:
+    """Info box for Robustness > Feature ablation: all-orders vs cleaned-orders payment-type deltas + equal coverage."""
+    ta = fm["type_audit"]
+    al, cl = ta["all_orders"], ta["cleaned_orders"]
+    ea, ec = ta["equal_coverage"]["all_orders"], ta["equal_coverage"]["cleaned_orders"]
+    zero = cl["delta_roc_auc"]["ci"][0] <= 0 <= cl["delta_roc_auc"]["ci"][1]
+    verdict = ("The cleaned-order interval includes 0, so the gain from payment type is **consistent with a labelling artifact**: "
+               "every cancelled / suspected-fraud order is a TRANSFER payment that is labelled on time."
+               if zero else
+               "The gain from payment type persists on cleaned orders (its interval excludes 0), so it is not explained by the "
+               "cancelled / fraud labelling alone.")
+    body = "\n".join([
+        f"- ROC-AUC change from payment type (final model minus no-payment model): **{_signed_ci(al['delta_roc_auc'])}** on all "
+        f"{al['n']:,} test orders, **{_signed_ci(cl['delta_roc_auc'])}** on cleaned orders ({cl['removed_orders']:,} cancelled/fraud removed).",
+        f"- Without payment features the model scores **{al['model_b']['roc_auc']:.3f}** on all orders and "
+        f"**{cl['model_b']['roc_auc']:.3f}** on cleaned orders (with them: {al['model_a']['roc_auc']:.3f} and {cl['model_a']['roc_auc']:.3f}).",
+        f"- Equal coverage (flagging the same {ea['k']:,} orders, {fmt_pct(ea['flagged_share'], clip=False)}): High-tier precision "
+        f"{fmt_pct(ea['model_a']['precision'], clip=False)} with payment features vs {fmt_pct(ea['model_b']['precision'], clip=False)} "
+        f"without (difference {_signed_ci(ea['delta_precision'])}); on cleaned orders ({ec['k']:,} flagged) "
+        f"{fmt_pct(ec['model_a']['precision'], clip=False)} vs {fmt_pct(ec['model_b']['precision'], clip=False)} "
+        f"(difference {_signed_ci(ec['delta_precision'])}).",
+        f"- {verdict}"])
+    callout("info", "Payment type is a partly artifactual signal", body)
 
 
 def show(fig: go.Figure, key: str) -> None:
@@ -197,6 +256,10 @@ def styled_table(
     if highlight:
         styler = styler.apply(lambda r: [colors[r.name] or ""] * len(r), axis=1)
     if wrap:
+        # short columns (scores, ids, flags) never wrap or clip and are right-aligned; long text columns wrap
+        short = [name_map[c] for c in d.columns if d[c].astype(str).str.len().max() <= 16]
+        if short:
+            styler = styler.set_properties(subset=short, **{"white-space": "nowrap", "min-width": "5.5rem", "text-align": "right"})
         st.table(styler.hide(axis="index"))
         return
     kwargs = {"height": height} if height else {}
@@ -222,7 +285,7 @@ def filter_reasons(labels, values, val_strs, min_abs: float = MIN_REASON_SHAP, k
     out = []
     for i in np.argsort(-np.abs(values)):
         if abs(values[i]) >= min_abs and np.sign(values[i]) == direction:
-            out.append(f"{labels[i]}: {val_strs[i]} {'raises' if values[i] > 0 else 'lowers'} risk")
+            out.append(reason_text(labels[i], val_strs[i], bool(values[i] > 0)))
         if len(out) == k:
             break
     return out

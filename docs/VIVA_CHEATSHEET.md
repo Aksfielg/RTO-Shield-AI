@@ -21,7 +21,7 @@
 | 9 | Label-shuffle AUC | **0.496** (val 0.495) | Chance-level when labels are shuffled: no leakage artefact |
 | 10 | Cancel / fraud orders | **2,855**, all labelled on-time | Why TRANSFER looks protective: gap -9.1 pp → -0.0 pp once removed |
 
-**Also know:** split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping payment type costs 0.016 AUC.
+**Also know:** the suite has 143 automated tests (16 files); split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders (cancelled/fraud removed; CI [-0.0031, 0.0091]).
 
 ---
 
@@ -41,7 +41,7 @@
 
 ---
 
-## 3. Fifteen likely examiner questions, with honest answers
+## 3. Eighteen likely examiner questions, with honest answers
 
 **1. Is this an RTO model?**
 No. The target is `Late_delivery_risk` from the public DataCo dataset: whether delivery exceeded its contracted window. RTO (refusal, NDR, COD failure) is not in this data. I use late delivery as an upstream proxy and I say so on every page. The deliverable is the methodology (leakage-safe features, chronological evaluation, calibration, explanations), to be retrained on real courier and return data.
@@ -59,7 +59,7 @@ Mostly from shipping mode and scheduled days (74% of attribution) and the near r
 They were a hypothesis (repeat customers and risky countries are later). The ablation tests it: including them changes ROC-AUC by 0.0008 (all features minus no-history), with a paired 95% interval of -0.0017 to 0.0033, which includes zero. So the honest finding is "no significant gain on this data". I kept them because they are leakage-safe and cost nothing, and they will matter on real customer data; I do not claim they help here.
 
 **6. Explain the TRANSFER finding.**
-At first TRANSFER looked protective (late rate 48.2% vs 57.3%). Checking order status showed all 2,855 CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments and every one is labelled on-time. Removing them makes the within-mode gap go from -9.1 pp to -0.0 pp. So it is a labelling artefact, not payment behaviour. A further honest point: in this dataset every order status occurs with exactly one payment type, so payment type is partly a proxy for post-dispatch status. That is why I never interpret it causally, and dropping it costs 0.016 AUC.
+At first TRANSFER looked protective (late rate 48.2% vs 57.3%). Checking order status showed all 2,855 CANCELED / SUSPECTED_FRAUD orders are TRANSFER payments and every one is labelled on-time. Removing them makes the within-mode gap go from -9.1 pp to -0.0 pp. So it is a labelling artefact, not payment behaviour. A further honest point: in this dataset every order status occurs with exactly one payment type, so payment type is partly a proxy for post-dispatch status. That is why I never interpret it causally, and dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders.
 
 **7. Why not a random train/test split?**
 Orders are a time series and the customer-history features look backwards. A random split would let the model train on later orders and be tested on earlier ones, and would put future outcomes into "history". I split strictly by time: train to 2017-03-16, validation to 2017-09-05, test to 2018-01-31. A 5-fold rolling-origin backtest gives AUC 0.770 ± 0.007, so the result is not an artefact of one cut.
@@ -87,3 +87,12 @@ No selection was made on it: hyperparameters use time-series CV on train, the mo
 
 **15. Are the Impact Simulator dollars real? And what next?**
 No. Cost of a failed delivery, cost per intervention and success rates are user-set assumptions, and the app says so. First Class lateness comes from the carrier SLA, so by default it is excluded from rescuable orders. Measuring the real effect of an intervention is Model 2 (uplift modelling) on real courier / NDR / return outcomes. Until then the simulator shows break-even rates, not forecasts.
+
+**16. Payment type is your 3rd-strongest feature. Isn't that just a leak or a proxy, and why do you keep it?**
+Partly a proxy, and I measured it: dropping the payment features lowers test ROC-AUC from 0.772 to 0.755 on all orders (difference +0.0165), but only from 0.775 to 0.772 once cancelled/fraud orders are removed (difference +0.0032, 95% CI [-0.0031, 0.0091], which includes zero), so the gain is consistent with a labelling artifact and not a real payment risk. At equal coverage (3,205 flagged orders) the High tier is 88.4% precise with the payment features and 87.1% without, so the High tier survives without payment type. I keep the model with payment features as primary because it is not worse on cleaned orders, never use order status as a feature, and mark every payment-type reason and chart label with a dagger (†) and a footnote so nobody reads it as payment behaviour.
+
+**17. Is the model better than a simple hand-written rule?**
+I tested that directly. The rule, written from train-period findings only, flags First Class, Second Class and Same Day orders placed from 12:00; on the test set it flags 37.7% of orders with precision 85.6% and recall 58.7%. Taking the model's top 3,723 orders (the same flagged share) gives precision 85.6%, a difference of +0.0000 with paired-bootstrap 95% CI [0.0000, 0.0000]. The plain rule matches the model at the same flagged share (the precision difference is not statistically distinguishable from 0). The model's added value is calibrated probabilities, three tiers, SHAP reasons and the information-level warning, not higher accuracy than a hand-written rule.
+
+**18. Is tuned LightGBM really better than Random Forest or XGBoost?**
+LightGBM (default) is not statistically distinguishable from the tuned model (the paired-bootstrap 95% CI of the ROC-AUC difference includes 0); Baseline LR, Logistic Regression, Random Forest and XGBoost are significantly worse. LightGBM was chosen for ranking and calibration, not because it wins significantly. For example, Random Forest minus the tuned model is -0.0063 ROC-AUC (95% CI -0.0118 to -0.0010) and XGBoost is -0.0058 (-0.0112 to -0.0007). I therefore do not claim the choice wins on accuracy; I chose it for ranking quality, calibration and SHAP support.

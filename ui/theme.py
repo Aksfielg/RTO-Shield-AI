@@ -13,6 +13,7 @@ this palette:
 
 from __future__ import annotations
 
+import numpy as np
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
@@ -65,11 +66,46 @@ pio.templates["rto"] = RTO_TEMPLATE
 pio.templates.default = "rto"
 
 
+def _make_room_for_labels(fig: go.Figure) -> None:
+    """
+    Bars/waterfalls with data labels drawn OUTSIDE the bar: never clip them (cliponaxis=False) and pad the value axis so the
+    label of the longest bar (and of a negative bar's far end) sits inside the plot area, away from the tick labels.
+    """
+    for tr in fig.data:
+        if tr.type not in ("bar", "waterfall") or tr.text is None or getattr(tr, "textposition", None) != "outside":
+            continue
+        tr.cliponaxis = False
+        horiz = tr.orientation == "h"
+        vals = np.asarray(tr.x if horiz else tr.y, dtype=float)
+        axis = fig.layout.xaxis if horiz else fig.layout.yaxis
+        if tr.type == "waterfall":
+            run, pts = 0.0, []
+            for v, m in zip(vals, tr.measure):
+                run = v if m == "absolute" else (run + v if m == "relative" else run)
+                pts.append(run)
+            lo, hi = min(pts), max(pts)
+            span = max(hi - lo, 1e-6)
+            new = [lo - 0.30 * span, hi + 0.30 * span]
+        else:
+            top = vals.copy()
+            err = getattr(getattr(tr, "error_y", None), "array", None)
+            if err is not None:
+                top = vals + np.asarray(err, dtype=float)
+            lo, hi = min(0.0, float(np.nanmin(vals))), float(np.nanmax(top))
+            span = max(hi - lo, 1e-6)
+            if axis.range:
+                new = [axis.range[0], axis.range[1] + 0.14 * (axis.range[1] - axis.range[0])]
+            else:
+                new = [lo - (0.22 * span if lo < 0 else 0.0), hi + 0.24 * span]
+        (fig.update_xaxes if horiz else fig.update_yaxes)(range=new)
+
+
 def style(fig: go.Figure, height: int = 320, title: str | None = None) -> go.Figure:
     """Apply the shared template + standard sizing to any figure."""
     fig.update_layout(template="rto", height=height)
     fig.update_xaxes(automargin=True)
     fig.update_yaxes(automargin=True)
+    _make_room_for_labels(fig)
     if title is not None:
         fig.update_layout(title=dict(text=f"<b>{title}</b>"))
     return fig

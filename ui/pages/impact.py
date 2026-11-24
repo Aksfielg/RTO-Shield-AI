@@ -56,7 +56,15 @@ def render() -> None:
         r_in = st.slider("Success rate inside those modes (%)", 0, 100, 30, 1) / 100.0
         r_out = st.slider("Success rate in all other modes (%)", 0, 100, 0, 1,
                           help="User-set. First Class lateness comes from the carrier SLA (1-day promise), which a call or address check cannot fix.") / 100.0
-        st.caption("First Class lateness comes from the carrier SLA, so it is excluded by default (0% success outside the selected modes).")
+        excluded = [m for m in all_modes if m not in inside_modes]
+        if "First Class" in inside_modes:
+            st.warning("First Class lateness comes from the carrier's 1-day promise; including it inflates the savings.")
+        if excluded:
+            st.caption(f"Modes outside the selection ({', '.join(excluded)}) get {C.fmt_pct(r_out, clip=False)} success, "
+                       f"set by the slider above; the {C.fmt_pct(r_in, clip=False)} rate applies only inside "
+                       f"{', '.join(inside_modes) if inside_modes else 'no mode'}.")
+        else:
+            st.caption(f"All modes are selected, so the {C.fmt_pct(r_in, clip=False)} success rate applies to every shipping mode.")
 
         C.card_title("Triage policy")
         policy = st.radio("Select triage policy:", ["Flag High tier", "Flag by threshold", "Flag all"], index=0)

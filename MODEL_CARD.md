@@ -2,7 +2,7 @@
 
 <!-- GENERATED FILE: edit templates/MODEL_CARD.md.tmpl, then run `python src/11_render_docs.py`. -->
 
-> Metrics generated 2026-11-12 22:09:44 from `outputs/final_metrics.json` and `models/thresholds.json`.
+> Metrics generated 2026-11-24 15:30:27 from `outputs/final_metrics.json` and `models/thresholds.json`.
 > Dataset: Constante et al. 2019, Mendeley Data V5, DOI 10.17632/8gx2fvg2k6.5
 
 ---
@@ -85,6 +85,19 @@
 | XGBoost | 0.7658 | 0.8351 | 0.1864 | 0.7754 | 0.6510 | 0.7078 | 0.7040 | 0.7100 | 0.7690 | 0.4191 | 1.0000 | 0.0401 |
 | LightGBM (default) | 0.7678 | 0.8354 | 0.1833 | 0.8531 | 0.5882 | 0.6963 | 0.7175 | 0.7321 | 0.8759 | 0.4758 | 1.0000 | 0.0182 |
 
+
+### Are the candidates distinguishable from the final model? (TEST ROC-AUC)
+
+| Model | Test ROC-AUC | Delta vs final (95% CI) | Distinguishable? |
+|---|---|---|---|
+| Baseline LR | 0.7291 | -0.0425 [-0.0485, -0.0365] | Yes |
+| Logistic Regression | 0.7497 | -0.0219 [-0.0269, -0.0170] | Yes |
+| Random Forest | 0.7653 | -0.0063 [-0.0118, -0.0010] | Yes |
+| XGBoost | 0.7658 | -0.0058 [-0.0112, -0.0007] | Yes |
+| LightGBM (default) | 0.7678 | -0.0038 [-0.0075, +0.0000] | No |
+
+Delta = candidate test ROC-AUC minus final test ROC-AUC; paired bootstrap, identical resample indices (1,000 resamples). LightGBM (default) is not statistically distinguishable from the tuned model (the paired-bootstrap 95% CI of the ROC-AUC difference includes 0); Baseline LR, Logistic Regression, Random Forest and XGBoost are significantly worse. LightGBM was chosen for ranking and calibration, not because it wins significantly.
+
 ### Final model metrics (TEST)
 
 > **Metric conventions.** ROC-AUC, PR-AUC, lifts and curves use the RAW (uncalibrated) model scores, because isotonic calibration collapses scores into ties and distorts rankings. Calibrated scores are used only for calibration (Brier, ECE), tiers, thresholds and every threshold-based metric (precision, recall, F1, accuracy, balanced accuracy, specificity, MCC).
@@ -123,6 +136,17 @@
 
 Signal = **limited** when the ROC-AUC 95% bootstrap CI lower bound is below 0.55 (which also covers any CI that includes 0.5); otherwise informative. Limited modes: Second Class, Standard Class. PR-AUC lift = PR-AUC divided by the mode's prevalence (1.0x = no better than the base rate; a mode with very high prevalence cannot show much lift).
 
+### Calibration within shipping mode (TEST)
+
+| Shipping mode | Test orders | Mean predicted | Observed late rate | Gap (predicted - observed) | ECE (within mode) | Flag (gap > 5 pp) |
+|---|---|---|---|---|---|---|
+| Same Day | 539 | 45.0% | 50.3% | -5.24 pp | 0.0524 | above 5 pp |
+| First Class | 1,513 | 95.5% | 95.0% | +0.47 pp | 0.0180 | within tolerance |
+| Second Class | 1,923 | 75.9% | 76.9% | -1.01 pp | 0.0101 | within tolerance |
+| Standard Class | 5,888 | 37.9% | 38.1% | -0.15 pp | 0.0043 | within tolerance |
+
+Same Day exceeds a 5 pp gap. Reported only; no per-mode recalibration.
+
 ### Feature ablation (TEST)
 
 | Feature subset | # feat. | ROC-AUC | ROC-AUC 95% CI | PR-AUC | Brier | Own thr. | F1 | Precision | Recall | Accuracy | Bal. acc. | Spec. | MCC | Delta ROC-AUC vs all [95% CI] |
@@ -136,6 +160,10 @@ Signal = **limited** when the ROC-AUC 95% bootstrap CI lower bound is below 0.55
 
 Threshold metrics use each ablated model's OWN max-F1 threshold chosen on validation. Delta = ROC-AUC(all features) - ROC-AUC(ablated), paired bootstrap, * = CI excludes 0. History features add NO significant gain: ROC-AUC(all) - ROC-AUC(no history) = +0.0008 (95% paired-bootstrap CI [-0.0017, +0.0033] includes 0 or is negative); PR-AUC is 0.8362 with history vs 0.8362 without.
 
+### Payment-type proxy
+
+**Payment-type proxy.** Every CANCELED / SUSPECTED_FRAUD order is a TRANSFER payment labelled on-time, so the payment features (`Type`, `is_cash`) partly proxy post-dispatch order status (which is never a model input). Dropping them lowers test ROC-AUC from 0.7716 to 0.7551 on all orders (difference +0.0165, 95% CI [0.0105, 0.0222]), but only from 0.7750 to 0.7718 on the 9,437 cleaned orders where cancelled/fraud orders are removed (difference +0.0032, 95% CI [-0.0031, 0.0091], which includes zero). At equal coverage (the same 3,205 orders flagged, 32.5%), High-tier precision is 88.4% with the payment features versus 87.1% without on all orders, and 90.9% versus 91.1% on cleaned orders. The gain from payment type is therefore consistent with a labelling artifact, not a real payment risk. The model with payment features stays the primary model; every payment-type reason code and chart label in the app carries a dagger (†) with the footnote "Payment-type effects reflect how DataCo labels cancelled/fraud orders (all TRANSFER, all on time), not a real payment risk."
+
 ---
 
 ## 6. Calibration (final tuned model)
@@ -145,7 +173,11 @@ Isotonic regression was fitted on validation-set predictions of the final tuned 
 | Metric (TEST, final tuned model) | Before calibration (raw) | After isotonic calibration |
 |---|---|---|
 | Brier score | 0.1860 | 0.1831 |
-| ECE | 0.0495 | 0.0067 |
+| Brier skill score (1 - Brier / (p(1-p)), p = test prevalence) | 0.2481 | 0.2602 |
+| ECE, 10 equal-width bins | 0.0495 | 0.0067 |
+| ECE, 10 equal-frequency bins | 0.0468 | 0.0133 |
+
+ECE is a size-weighted average, so a few small bins can sit well off the diagonal. Equal-frequency bins by rank; ties of the isotonic score are split by the underlying raw score.
 
 The validation ECE after calibration is ~0 by construction (the calibrator is fitted on that set); the test-set figure above is the honest one. Reliability curves: `outputs/calibration.png`.
 
@@ -155,11 +187,11 @@ The validation ECE after calibration is ~0 by construction (the calibrator is fi
 
 Cutoffs are **midpoints of low-density gaps** between calibrated-score clusters (41 distinct scores on test), chosen on validation scores only so that no cluster holding more than 2% of validation orders is split between tiers, then verified on the test set.
 
-| Tier | Score range | Test orders | Share | Late rate | Late captured | Suggested handling |
-|---|---|---|---|---|---|---|
-| Low | score < 0.4657 | 6,104 | 61.9% | 36.5% | 41.0% | Standard dispatch with routine monitoring. |
-| Medium | 0.4657 <= score < 0.7423 | 554 | 5.6% | 66.6% | 6.8% | Monitor the carrier pickup SLA. |
-| High | score >= 0.7423 | 3,205 | 32.5% | 88.4% | 52.2% | Operational flag: review routing and confirm proactively. |
+| Tier | Score range | Test orders | Share | Late rate | Late rate 95% CI (Wilson) | Late captured | Suggested handling |
+|---|---|---|---|---|---|---|---|
+| Low | score < 0.4657 | 6,104 | 61.9% | 36.5% | [35.3%, 37.7%] | 41.0% | Standard dispatch with routine monitoring. |
+| Medium | 0.4657 <= score < 0.7423 | 554 | 5.6% | 66.6% | [62.6%, 70.4%] | 6.8% | Monitor the carrier pickup SLA. |
+| High | score >= 0.7423 | 3,205 | 32.5% | 88.4% | [87.2%, 89.4%] | 52.2% | Operational flag: review routing and confirm proactively. |
 
 - **Low** - Lower risk: 37% of these orders were late in held-out test data (overall: 55%).
 - **Medium** - Elevated risk: 67% of these orders were late in held-out test data (overall: 55%).
@@ -174,6 +206,18 @@ Cutoffs are **midpoints of low-density gaps** between calibrated-score clusters 
 | Precision >= 0.80 | 0.4657 | 38.11% (3,759) | 0.8516 | 0.5895 | 0.6967 | 0.7174 | 0.7318 | 0.8741 | 0.4749 |
 | Max-F1 | 0.3538 | 89.78% (8,855) | 0.5855 | 0.9549 | 0.7259 | 0.6031 | 0.5635 | 0.1721 | 0.2086 |
 | Cost-minimising (FN=2xFP) | 0.3320 | 92.21% (9,095) | 0.5777 | 0.9676 | 0.7234 | 0.5927 | 0.5506 | 0.1335 | 0.1877 |
+
+### Plain-rule baseline (TEST)
+
+**Rule (from TRAIN-period findings only, nothing tuned on test):** Flag First Class and Second Class orders, plus Same Day orders placed at or after 12:00 (order hour >= 12); flag nothing else. Train late rates: First Class 95.5%, Same Day 44.4%, Second Class 76.9%, Standard Class 38.3%; Same Day before 12:00 0.0%, from 12:00 96.0%.
+
+| Policy (TEST) | Flagged | Precision | Recall | F1 | MCC |
+|---|---|---|---|---|---|
+| Plain rule | 37.7% (3,723) | 0.8563 | 0.5871 | 0.6966 | 0.4786 |
+| Model top-3,723 by raw score (same flagged share) | 37.7% (3,723) | 0.8563 | 0.5871 | 0.6966 | 0.4786 |
+| Model High tier | 32.5% (3,205) | 0.8836 | 0.5215 | 0.6559 | 0.4646 |
+
+At the same flagged share (37.7%, 3,723 orders) the model's precision minus the rule's is +0.0000 (paired-bootstrap 95% CI [+0.0000, +0.0000]); recall 0.5871 vs 0.5871. 100.0% of the model's top-3,723 orders are also flagged by the rule (the two flag exactly the same orders, so the paired difference is 0 by construction). The plain rule matches the model at the same flagged share (the precision difference is not statistically distinguishable from 0). The model's added value is calibrated probabilities, three tiers, SHAP reasons and the information-level warning, not higher accuracy than a hand-written rule.
 
 ### Threshold stability (TEST, threshold ±0.01 / ±0.02)
 
@@ -273,6 +317,8 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 | **Auditability** | All thresholds, calibration parameters and metrics are saved in `models/` and `outputs/final_metrics.json`; reproducible via `run_all.py` |
 
 ---
+
+**Automated tests:** the repository ships 143 automated tests (pytest, 16 files) covering leakage, split chronology, metric reporting, document/app consistency, the payment-type disclosure, reproducibility and every dashboard page.
 
 ## 11. Files
 

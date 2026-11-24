@@ -63,6 +63,7 @@ def render(test_df: pd.DataFrame | None = None) -> None:
                              "payment": d["payment_type"], "region": d["region"], "top_reasons": top})
             C.styled_table(pd.DataFrame(rows), rename={"score": "Risk Score", "actual": "Actual Delivery", "top_reasons": "Top reasons"},
                            formats={"score": lambda v: C.fmt_pct(v)}, wrap=True)
+            C.reason_footnote([t for r in rows for t in r["top_reasons"].split("; ")])
         else:
             st.info("Run src/07_predict_demo.py to generate the benchmark table.")
 
@@ -137,6 +138,7 @@ def render(test_df: pd.DataFrame | None = None) -> None:
             reasons = C.filter_reasons(ex["labels"], ex["values"], ex["val_strs"])
             for r in reasons or ["No single factor reaches the threshold in this direction."]:
                 st.markdown(f"{'🔺' if 'raises' in r else '🔻'} {r}")
+            C.reason_footnote(reasons)
             st.markdown("**Key order attributes**")
             attrs = pd.DataFrame({"Attribute": ["Shipping mode", "Scheduled days", "Payment method", "Order value", "Items",
                                                 "Placement hour", "Market", "Customer segment"],
@@ -147,3 +149,4 @@ def render(test_df: pd.DataFrame | None = None) -> None:
             C.styled_table(attrs)
         with right:
             C.show(charts.shap_waterfall(ex["labels"], ex["values"], ex["val_strs"], ex["base_value"]), key="real_waterfall")
+            C.chart_footnote(ex["labels"], ex["values"], top_k=8)

@@ -123,5 +123,11 @@ print(f"  {PASS} {n_pass} passed   {FAIL} {n_fail} failed   "
       f"(total {n_pass + n_fail} checks)")
 print(f"{'=' * 60}\n")
 
-if n_fail:
+if n_fail and __name__ == "__main__":
     sys.exit(1)
+
+
+def test_all_project_modules_import():
+    """pytest entry point: every import / callable check recorded above must have passed."""
+    failed = [(label, detail) for label, ok, detail in results if not ok]
+    assert not failed, failed

@@ -21,6 +21,27 @@ def _pick(options: list, wanted):
     return options.index(wanted) if wanted in options else 0
 
 
+FORM_PREFIX = "so_w_"          # every form widget lives under ONE key, whichever preset is active
+PRESET_KEY = "so_preset"
+
+
+def load_preset_into_state(d: dict, preset: str) -> None:
+    """
+    Make every widget show THIS preset's own values.  When the preset changes, all form keys of the previous preset (or of the
+    custom form) are deleted first and then re-written from the new row, so no stale widget state (for example a payment type
+    chosen under "Custom input") can survive a switch.
+    """
+    for k in [k for k in st.session_state if str(k).startswith(FORM_PREFIX)]:
+        del st.session_state[k]
+    st.session_state[PRESET_KEY] = preset
+    st.session_state.update({
+        FORM_PREFIX + "mode": d["Shipping_Mode"], FORM_PREFIX + "type": d["Type"], FORM_PREFIX + "value": float(d["order_value"]),
+        FORM_PREFIX + "items": int(d["n_items"]), FORM_PREFIX + "disc": float(d["avg_discount_rate"]),
+        FORM_PREFIX + "market": d["Market"], FORM_PREFIX + "dept": d["Department_Name"], FORM_PREFIX + "seg": d["Customer_Segment"],
+        FORM_PREFIX + "hour": int(d["order_hour"]), FORM_PREFIX + "dow": DOW_NAMES[int(d["order_dow"])], FORM_PREFIX + "month": int(d["order_month"]),
+    })
+
+
 def default_values(base: dict, opts: dict) -> dict:
     """Widget defaults for a (possibly empty) real order; the rounding/clamping here is undone for untouched fields."""
     return {
@@ -92,30 +113,32 @@ def render() -> None:
     base = reps[tier_pick] if tier_pick else {}
     ck = tier_pick or "custom"
     d = default_values(base, opts)
+    if st.session_state.get(PRESET_KEY) != ck:
+        load_preset_into_state(d, ck)
 
     col_form, col_res = st.columns([1.05, 1.25], gap="large")
     with col_form, st.container(border=True):
         C.card_title("Order parameters")
-        mode = st.selectbox("Shipping mode", opts["modes"], index=_pick(opts["modes"], d["Shipping_Mode"]), key=f"mode_{ck}")
+        mode = st.selectbox("Shipping mode", opts["modes"], key=FORM_PREFIX + "mode")
         st.caption(f"Contracted shipping days: **{opts['mode_days'][mode]}** (fixed by shipping mode in the data)")
         a, b = st.columns(2)
         with a:
-            ptype = st.selectbox("Payment type", opts["types"], index=_pick(opts["types"], d["Type"]), key=f"type_{ck}")
+            ptype = st.selectbox("Payment type", opts["types"], key=FORM_PREFIX + "type")
             value = st.number_input("Order value ($)", min_value=float(opts["value_range"][0]), max_value=float(opts["value_range"][1]),
-                                    value=float(d["order_value"]), step=10.0, key=f"value_{ck}")
+                                    step=10.0, key=FORM_PREFIX + "value")
             items = st.number_input("Number of items", min_value=opts["items_range"][0], max_value=opts["items_range"][1],
-                                    value=d["n_items"], step=1, key=f"items_{ck}")
+                                    step=1, key=FORM_PREFIX + "items")
         with b:
-            disc = st.slider("Discount rate", 0.0, 0.5, float(d["avg_discount_rate"]), 0.01, key=f"disc_{ck}")
-            market = st.selectbox("Market", opts["markets"], index=_pick(opts["markets"], d["Market"]), key=f"market_{ck}")
-            dept = st.selectbox("Department", opts["departments"], index=_pick(opts["departments"], d["Department_Name"]), key=f"dept_{ck}")
+            disc = st.slider("Discount rate", 0.0, 0.5, step=0.01, key=FORM_PREFIX + "disc")
+            market = st.selectbox("Market", opts["markets"], key=FORM_PREFIX + "market")
+            dept = st.selectbox("Department", opts["departments"], key=FORM_PREFIX + "dept")
         c, e = st.columns(2)
         with c:
-            seg = st.selectbox("Customer segment", opts["segments"], index=_pick(opts["segments"], d["Customer_Segment"]), key=f"seg_{ck}")
-            hour = st.slider("Order hour (0-23)", 0, 23, d["order_hour"], key=f"hour_{ck}")
+            seg = st.selectbox("Customer segment", opts["segments"], key=FORM_PREFIX + "seg")
+            hour = st.slider("Order hour (0-23)", 0, 23, key=FORM_PREFIX + "hour")
         with e:
-            dow_name = st.selectbox("Day of week", DOW_NAMES, index=d["order_dow"], key=f"dow_{ck}")
-            month = st.slider("Order month", 1, 12, d["order_month"], key=f"month_{ck}")
+            dow_name = st.selectbox("Day of week", DOW_NAMES, key=FORM_PREFIX + "dow")
+            month = st.slider("Order month", 1, 12, key=FORM_PREFIX + "month")
         if tier_pick:
             st.caption(f"Loaded the actual holdout row for order #{base['Order Id']}, including its customer and country history features. "
                        "Untouched, it scores exactly like the Real Test Orders page.")
@@ -153,10 +176,14 @@ def render() -> None:
                     st.markdown(f"{'🔺' if 'raises' in r else '🔻'} {r}")
             else:
                 st.caption(f"No single factor reaches |SHAP| ≥ {C.MIN_REASON_SHAP} in the direction of this score.")
+            C.reason_footnote(reasons)
             C.show(charts.grouped_shap_bar(ex["labels"], ex["values"], ex["val_strs"]), key="score_shap_bar")
+            if not reasons or not any(r.rstrip().endswith("†") for r in reasons):      # footnote already shown under the reasons
+                C.chart_footnote(ex["labels"], ex["values"], top_k=6)
         if tier_pick:
             actual = "late" if base.get("_actual") == 1 else "on time"
             st.caption(f"This real holdout order was actually delivered **{actual}** (shown for reference, never used for scoring).")
         with st.expander("Technical SHAP waterfall"):
             C.show(charts.shap_waterfall(ex["labels"], ex["values"], ex["val_strs"], ex["base_value"]), key="score_waterfall")
+            C.chart_footnote(ex["labels"], ex["values"], top_k=8)
             st.caption("Additive shift from the average log-odds to this order's final log-odds (2 decimals).")

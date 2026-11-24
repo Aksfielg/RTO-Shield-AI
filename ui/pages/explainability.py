@@ -41,11 +41,13 @@ def render() -> None:
                 C.show(charts.importance_grouped(grouped[:8]), key="exp_grouped")
             with b:
                 C.show(charts.importance_encoded(fm["shap"]["top_features"][:8]), key="exp_encoded")
+            C.chart_footnote()
 
     with tab_bee, st.container(border=True):
         C.card_title("Beeswarm distribution")
         st.write("Each dot is an order; the horizontal position is its SHAP impact and the shade shows whether the feature value was low or high.")
         C.show(charts.beeswarm(data.shap_sample()), key="exp_bee")
+        C.chart_footnote()
 
     with tab_dep, st.container(border=True):
         C.card_title("SHAP dependence on key continuous features")

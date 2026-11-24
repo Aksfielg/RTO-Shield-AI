@@ -69,6 +69,8 @@ def fmt(value, spec: str) -> str:
         return f"{value:.{int(spec[1])}f}"
     if spec.startswith("pct"):
         return f"{value * 100:.{int(spec[3])}f}%"
+    if spec == "s4":
+        return f"{value:+.4f}"
     if spec == "pp1":
         return f"{value * 100:+.1f} pp"
     if spec == "int":
@@ -105,12 +107,63 @@ def b_model_comparison_val(): return _comp("val")
 
 def b_model_comparison_short() -> str:
     by = {(r["model"], r["split"]): r for r in M["model_comparison"]}
+    sig = {r["model"]: r for r in M["model_comparison_significance"]["rows"]}
     rows = []
     for m in MODEL_LABELS:
         v, t = by[(m, "val")], by[(m, "test")]
+        s = sig.get(m)
         rows.append([MODEL_LABELS[m], f"{v['roc_auc']:.4f}", f"{t['roc_auc']:.4f}", f"{t['pr_auc']:.4f}",
-                     f"{t['f1']:.3f}", f"{t['brier']:.4f}"])
-    return md_table(["Model", "Val ROC-AUC", "Test ROC-AUC", "Test PR-AUC", "Test F1", "Test Brier"], rows)
+                     f"{t['f1']:.3f}", f"{t['brier']:.4f}",
+                     "n/a" if s is None else f"{s['delta']:+.4f} [{s['ci_lo']:+.4f}, {s['ci_hi']:+.4f}]",
+                     "n/a" if s is None else ("Yes" if s["distinguishable"] else "No")])
+    return md_table(["Model", "Val ROC-AUC", "Test ROC-AUC", "Test PR-AUC", "Test F1", "Test Brier",
+                     "Delta vs final (95% CI)", "Distinguishable?"], rows)
+
+
+def b_test_table() -> str:
+    T = M["tests"]
+    rows = [[f"`{r['file']}`", f"{r['tests']:,}", r["description"]] for r in T["by_file"]]
+    rows.append(["**Total**", f"**{T['total']:,}**", f"{T['n_files']} files, counted with `{T['source']}`"])
+    return md_table(["Test file", "Tests", "What it protects"], rows)
+
+
+def b_model_significance() -> str:
+    S = M["model_comparison_significance"]
+    rows = [[r["label"], f"{r['roc_auc']:.4f}", f"{r['delta']:+.4f} [{r['ci_lo']:+.4f}, {r['ci_hi']:+.4f}]",
+             "Yes" if r["distinguishable"] else "No"] for r in S["rows"]]
+    return (md_table(["Model", "Test ROC-AUC", "Delta vs final (95% CI)", "Distinguishable?"], rows)
+            + f"\n\nDelta = {S['delta_definition']} ({S['n_boot']:,} resamples). " + S["summary"])
+
+
+def b_rule_baseline() -> str:
+    rb = M["rule_baseline"]
+    eq = rb["equal_share_comparison"]
+    rows = []
+    for name, m in [("Plain rule", rb["rule"]), (f"Model top-{rb['model_top_k']['k']:,} by raw score (same flagged share)", rb["model_top_k"]),
+                    ("Model High tier", rb["high_tier"])]:
+        rows.append([name, f"{m['flagged_share'] * 100:.1f}% ({m['flagged_orders']:,})", f"{m['precision']:.4f}", f"{m['recall']:.4f}",
+                     f"{m['f1']:.4f}", f"{m['mcc']:.4f}"])
+    ev = rb["train_evidence"]
+    modes = ", ".join(f"{k} {v['late_rate'] * 100:.1f}%" for k, v in ev["late_rate_by_mode"].items())
+    return (f"**Rule (from TRAIN-period findings only, nothing tuned on test):** {rb['definition']} Train late rates: {modes}; Same Day "
+            f"before 12:00 {ev['same_day_before_noon_late_rate'] * 100:.1f}%, from 12:00 {ev['same_day_from_noon_late_rate'] * 100:.1f}%.\n\n"
+            + md_table(["Policy (TEST)", "Flagged", "Precision", "Recall", "F1", "MCC"], rows)
+            + f"\n\nAt the same flagged share ({eq['flagged_share'] * 100:.1f}%, {eq['k']:,} orders) the model's precision minus the rule's is "
+              f"{eq['delta_precision']:+.4f} (paired-bootstrap 95% CI [{eq['delta_precision_ci'][0]:+.4f}, {eq['delta_precision_ci'][1]:+.4f}]); "
+              f"recall {eq['recall_a']:.4f} vs {eq['recall_b']:.4f}. {rb['top_k_overlap_with_rule'] * 100:.1f}% of the model's top-{eq['k']:,} orders are also "
+              "flagged by the rule" + (" (the two flag exactly the same orders, so the paired difference is 0 by construction). "
+                                       if rb["top_k_overlap_with_rule"] == 1.0 else ". ") + rb["verdict"])
+
+
+def b_per_mode_calibration() -> str:
+    P = M["per_mode_calibration"]
+    rows = [[r["mode"], f"{r['orders']:,}", f"{r['mean_predicted'] * 100:.1f}%", f"{r['observed'] * 100:.1f}%", f"{r['gap_pp']:+.2f} pp",
+             f"{r['ece']:.4f}", "above 5 pp" if r["flagged"] else "within tolerance"] for r in P["rows"]]
+    flagged = [r["mode"] for r in P["rows"] if r["flagged"]]
+    return (md_table(["Shipping mode", "Test orders", "Mean predicted", "Observed late rate", "Gap (predicted - observed)",
+                      "ECE (within mode)", f"Flag (gap > {P['flag_gap_pp']:.0f} pp)"], rows)
+            + "\n\n" + (", ".join(flagged) + f" exceed{'s' if len(flagged) == 1 else ''} a {P['flag_gap_pp']:.0f} pp gap. " if flagged
+                         else f"No mode exceeds a {P['flag_gap_pp']:.0f} pp gap. ") + "Reported only; no per-mode recalibration.")
 
 
 def b_final_metrics() -> str:
@@ -133,11 +186,15 @@ def b_final_metrics() -> str:
 
 
 def b_calibration_table() -> str:
-    t = M["test"]
+    t, ef = M["test"], M["calibration_ef"]
     return md_table(["Metric (TEST, final tuned model)", "Before calibration (raw)", "After isotonic calibration"], [
         ["Brier score", f"{t['brier_raw']:.4f}", f"{t['brier_calibrated']:.4f}"],
-        ["ECE", f"{t['ece_raw']:.4f}", f"{t['ece_calibrated']:.4f}"],
-    ])
+        ["Brier skill score (1 - Brier / (p(1-p)), p = test prevalence)", f"{ef['brier_skill_score']['raw']:.4f}",
+         f"{ef['brier_skill_score']['calibrated']:.4f}"],
+        ["ECE, 10 equal-width bins", f"{ef['ece']['raw_equal_width']:.4f}", f"{ef['ece']['calibrated_equal_width']:.4f}"],
+        ["ECE, 10 equal-frequency bins", f"{ef['ece']['raw_equal_frequency']:.4f}", f"{ef['ece']['calibrated_equal_frequency']:.4f}"],
+    ]) + ("\n\nECE is a size-weighted average, so a few small bins can sit well off the diagonal. "
+          + ef["binning_note"].capitalize() + ".")
 
 
 def b_tier_table() -> str:
@@ -148,8 +205,10 @@ def b_tier_table() -> str:
     for k in ["Low", "Medium", "High"]:
         s, d = M["tiers"]["test"][k], M["tiers"]["descriptions"][k]
         rows.append([k, rng[k], f"{s['orders']:,}", f"{s['share'] * 100:.1f}%", f"{s['late_rate'] * 100:.1f}%",
+                     f"[{s['late_rate_ci_lo'] * 100:.1f}%, {s['late_rate_ci_hi'] * 100:.1f}%]",
                      f"{s['late_captured'] * 100:.1f}%", d["action"]])
-    return md_table(["Tier", "Score range", "Test orders", "Share", "Late rate", "Late captured", "Suggested handling"], rows)
+    return md_table(["Tier", "Score range", "Test orders", "Share", "Late rate", "Late rate 95% CI (Wilson)", "Late captured",
+                     "Suggested handling"], rows)
 
 
 def b_tier_descriptions() -> str:
@@ -324,6 +383,9 @@ def report_tables() -> str:
              + b_tier_table() + "\n\n" + b_tier_descriptions())
     s.append("## Table 8 - Per-Shipping-Mode Performance (TEST, raw-score ranking)\n\n" + b_per_mode() +
              "\n\n" + b_per_mode_note())
+    s.append("## Table 8b - Is any candidate model distinguishable from the final model? (TEST ROC-AUC)\n\n" + b_model_significance())
+    s.append("## Table 8c - Plain-rule baseline (TEST)\n\n" + b_rule_baseline())
+    s.append("## Table 8d - Calibration within shipping mode (TEST)\n\n" + b_per_mode_calibration())
     s.append("## Table 9 - Feature Ablation (TEST)\n\n" + b_ablation() + "\n\n" + b_ablation_verdict())
     s.append("## Table 10 - Rolling-Origin Backtest\n\n" + b_backtest() +
              f"\n\nMean ROC-AUC {M['backtest']['roc_auc_mean']:.4f} +/- {M['backtest']['roc_auc_std']:.4f}; "

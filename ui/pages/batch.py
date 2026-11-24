@@ -80,6 +80,7 @@ def render(sample_override: pd.DataFrame | None = None) -> None:
         st.caption(f"Columns: Order Id + {len(MODEL_FEATURES)} model features. Required: {', '.join(REQUIRED)}. "
                    f"Optional: add `{TARGET_COL}` (1 = late, 0 = on time) to audit the batch. The three example rows are real holdout orders.")
         C.styled_table(example, formats={c: "{:.3f}" for c in example.columns if pd.api.types.is_float_dtype(example[c])})
+        st.caption("Country names are as in DataCo (Spanish).")
         st.download_button("📥 Download this template (CSV)", example.to_csv(index=False).encode("utf-8"),
                            "rto_shield_batch_template.csv", "text/csv")
 
@@ -126,6 +127,7 @@ def render(sample_override: pd.DataFrame | None = None) -> None:
     with st.spinner("Scoring orders and generating SHAP explanations..."):
         scored = predict.score_batch(df_clean)
 
+    is_demo = source.startswith("50 sample holdout") or source.startswith("Automated test batch")
     n = len(scored)
     counts = {t: int((scored["tier"] == t).sum()) for t in ["Low", "Medium", "High"]}
     shares = {t: counts[t] / n if n else 0.0 for t in counts}
@@ -178,6 +180,8 @@ def render(sample_override: pd.DataFrame | None = None) -> None:
                 C.metric("Batch Brier score", "n/a" if ev["brier"] is None else f"{ev['brier']:.3f}", ci_txt(ev["brier_ci"]))
             with e[3]:
                 C.metric("Batch late rate", C.fmt_pct(ev["prevalence"], clip=False), f"n = {ev['n']:,} labelled rows")
+            if is_demo:
+                st.caption("Demo sample, not a result; the headline is the held-out test set.")
 
             st.markdown("**Calibration by risk tier**")
             tab = pd.DataFrame([{
@@ -188,10 +192,13 @@ def render(sample_override: pd.DataFrame | None = None) -> None:
             C.styled_table(tab, rename={"mean_predicted": "Mean Predicted Score", "actual_late_rate": "Actual Late Rate"},
                            formats={"share": lambda v: C.fmt_pct(v, clip=False), "actual_late_rate": lambda v: C.fmt_pct(v, clip=False)})
             ok = [r for r in ev["tier_calibration"] if not r["suppressed"]]
-            if len(ok) < 3:
-                st.caption(f"Calibration gaps are suppressed for tiers with fewer than {predict.MIN_TIER_N} orders (too few to be meaningful).")
-            if ok:
-                C.show(charts.predicted_vs_actual(ok), key="batch_cal")
+            if len(ok) < 2:
+                st.caption(f"Calibration chart hidden: fewer than two tiers have at least {predict.MIN_TIER_N} orders, and tiers under "
+                           f"{predict.MIN_TIER_N} orders are suppressed because their rates are too noisy to compare.")
+            else:
+                if len(ok) < len(ev["tier_calibration"]):
+                    st.caption(f"Tiers under {predict.MIN_TIER_N} orders are suppressed (greyed, with their n).")
+                C.show(charts.predicted_vs_actual(ev["tier_calibration"]), key="batch_cal")
 
     with st.container(border=True):
         C.card_title("5. Download & inspect scored results")
@@ -199,7 +206,11 @@ def render(sample_override: pd.DataFrame | None = None) -> None:
         if outcome_col:
             out.insert(4, "actual", outcome_labels(df_clean[outcome_col]).values)
         st.download_button("📥 Download scored batch (CSV)", out.to_csv(index=False).encode("utf-8"), "rto_shield_batch_scored.csv", "text/csv")
-        view = out[[c for c in ["order_id", "risk_score", "tier", "flagged", "actual", "reason_1", "reason_2", "reason_3"] if c in out.columns]].head(20)
+        view = out[[c for c in ["order_id", "risk_score", "tier", "flagged", "actual", "reason_1", "reason_2", "reason_3"] if c in out.columns]].head(20).copy()
+        for c in ("reason_1", "reason_2", "reason_3"):          # display only: the downloadable CSV keeps the DataCo names
+            if c in view.columns:
+                view[c] = view[c].map(data.en_text)
         st.markdown("**Preview: first 20 scored orders**")
         C.styled_table(view, rename={"risk_score": "Risk Score", "actual": "Actual Outcome", "reason_1": "Reason 1", "reason_2": "Reason 2",
                                      "reason_3": "Reason 3"}, formats={"risk_score": lambda v: C.fmt_pct(v)})
+        C.reason_footnote([str(r) for c in ("reason_1", "reason_2", "reason_3") if c in out.columns for r in out[c].dropna()])

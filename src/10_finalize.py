@@ -49,9 +49,57 @@ from config import (  # noqa: E402
 from features import _select_feature_cols  # noqa: E402
 from reasons import group_shap_values  # noqa: E402
 from utils import compute_metrics, expected_calibration_error  # noqa: E402
+import rigour  # noqa: E402
 import tiering  # noqa: E402
 
 OUT_JSON = OUTPUTS_DIR / "final_metrics.json"
+TESTS_DIR = Path(__file__).resolve().parent.parent / "tests"
+
+# One curated, complete one-line description per test file (shown on the Methodology page, in README and MODEL_CARD).
+# A new test file must be added here: collect_tests() fails loudly otherwise.
+TEST_DESCRIPTIONS = {
+    "test_app_pages.py": "Opens every dashboard page with Streamlit AppTest: no exceptions, no empty cards, no negative-money formatting glitches, plus page-specific content checks.",
+    "test_auc_ceiling.py": "Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance.",
+    "test_consistency.py": "Docs, app and final_metrics.json agree; tiers cover every test order; flagged equals the High tier; no cutoff is hand-typed in code.",
+    "test_dashboard_fixes.py": "Regression tests for the dashboard fixes: preset widget state, dynamic Impact caption, per-mode flagging totals, chart label room, display-only country names and toolbar mode.",
+    "test_imports.py": "Smoke test: every project module imports and its key functions are callable.",
+    "test_metrics_reporting.py": "Metric functions, bootstrap confidence intervals and the batch small-sample rules.",
+    "test_no_leakage.py": "Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only.",
+    "test_no_stale_text.py": "Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder.",
+    "test_pipeline.py": "Chronological splits do not overlap, scoring returns valid output, and history features contain no future information.",
+    "test_reproducibility.py": "Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores.",
+    "test_rigour.py": "Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs.",
+    "test_test_catalog.py": "The published test count equals the live pytest collection and every document and the app quote that same total.",
+    "test_type_audit.py": "Payment-type audit block, dagger on payment-type reasons and charts, and no hard-coded audit numbers in the UI or templates.",
+    "test_type_disclosure.py": "The payment-type proxy is disclosed on Home, Robustness and Limitations, and the audit block and dagger are present.",
+    "test_ui_components.py": "Formatting helpers: percentages, money, signed differences and reason filtering.",
+    "test_ui_state.py": "Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders.",
+}
+
+
+def collect_tests() -> dict:
+    """Live ``pytest --collect-only -q`` count per test file (every test file on disk is listed, even with 0 items)."""
+    import os
+    import re
+    import subprocess
+    from collections import Counter
+    proc = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", "tests/"],
+                          cwd=TESTS_DIR.parent, capture_output=True, text=True, env={**os.environ, "PYTHONUTF8": "1"})
+    by = Counter()
+    for line in proc.stdout.splitlines():
+        if "::" in line:
+            by[line.split("::")[0].replace("\\", "/").split("/")[-1]] += 1
+    m = re.search(r"(\d+) tests? collected", proc.stdout)
+    if proc.returncode != 0 or not m or int(m.group(1)) != sum(by.values()):
+        raise RuntimeError("pytest --collect-only failed or its count does not add up:\n" + proc.stdout[-1500:] + proc.stderr[-800:])
+    for p in TESTS_DIR.glob("test_*.py"):
+        by.setdefault(p.name, 0)
+    missing = sorted(set(by) - set(TEST_DESCRIPTIONS))
+    stale = sorted(set(TEST_DESCRIPTIONS) - set(by))
+    if missing or stale:
+        raise RuntimeError(f"TEST_DESCRIPTIONS out of date in 10_finalize.py: add {missing}, remove {stale}")
+    return {"total": int(m.group(1)), "n_files": len(by), "source": "pytest --collect-only -q tests/",
+            "by_file": [{"file": f, "tests": int(by[f]), "description": TEST_DESCRIPTIONS[f]} for f in sorted(by)]}
 MODES = ["Same Day", "First Class", "Second Class", "Standard Class"]
 CF = ["CANCELED", "SUSPECTED_FRAUD"]
 
@@ -218,21 +266,45 @@ def main() -> None:
 
     # ---------------------------------------------------- model comparison (02)
     csv_rows = pd.read_csv(OUTPUTS_DIR / "metrics_model_comparison.csv")
-    mc_rows = []
+    mc_rows, cand_scores = [], {}
     for name in ["baseline_lr", "logistic_regression", "random_forest", "xgboost", "lightgbm"]:
         mp = MODELS_DIR / f"{name}.joblib"
         if not mp.exists():       # large artefact not available -> keep the 02 CSV rows
             mc_rows += csv_rows[csv_rows["model"] == name].to_dict("records")
             continue
         mdl = joblib.load(mp)
+        cand_scores[name] = mdl.predict_proba(Xtb if name == "baseline_lr" else X_te)[:, 1]
         for split, Xs, ys in [("val", Xvb if name == "baseline_lr" else X_val, y_val),
                               ("test", Xtb if name == "baseline_lr" else X_te, y_te)]:
             mc_rows.append({"model": name, "split": split, **compute_metrics(ys, mdl.predict_proba(Xs)[:, 1], 0.5)})
     out["model_comparison"] = jsonable(pd.DataFrame(mc_rows))
 
+    # ---- (1) is any candidate really different from the final tuned model? paired bootstrap, shared resample indices
+    sig_rows = []
+    for name in ["baseline_lr", "logistic_regression", "random_forest", "xgboost", "lightgbm"]:
+        if name in cand_scores:
+            sig_rows.append({"model": name, "label": rigour.MODEL_LABELS[name],
+                             "roc_auc": float(roc_auc_score(y_te, cand_scores[name])),
+                             **rigour.paired_auc_bootstrap(y_te, cand_scores[name], raw_te, seed=7)})
+    out["model_comparison_significance"] = {
+        "reference": "final tuned LightGBM (raw scores)", "n_boot": rigour.N_BOOT,
+        "delta_definition": "candidate test ROC-AUC minus final test ROC-AUC; paired bootstrap, identical resample indices",
+        "rows": sig_rows, "summary": rigour.significance_summary(sig_rows)}
+
     # ------------------------------------------------------------ calibration
     print("[3] Calibration data + plot (final model) ...")
     out["calibration"] = {"raw": calib_bins(y_te, raw_te), "calibrated": calib_bins(y_te, cal_te)}
+    out["calibration_ef"] = {
+        "n_bins": 10, "n_boot": rigour.N_BOOT, "prevalence": float(y_te.mean()),
+        "binning_note": "equal-frequency bins by rank; ties of the isotonic score are split by the underlying raw score",
+        "calibrated": rigour.equal_frequency_bins(y_te, cal_te, order_by=raw_te),
+        "raw": rigour.equal_frequency_bins(y_te, raw_te),
+        "ece": {"raw_equal_width": float(expected_calibration_error(y_te, raw_te)),
+                "raw_equal_frequency": rigour.ece_equal_frequency(y_te, raw_te),
+                "calibrated_equal_width": float(expected_calibration_error(y_te, cal_te)),
+                "calibrated_equal_frequency": rigour.ece_equal_frequency(y_te, cal_te, order_by=raw_te)},
+        "brier_skill_score": {"raw": rigour.brier_skill_score(y_te, raw_te), "calibrated": rigour.brier_skill_score(y_te, cal_te)},
+    }
     m03.save_calibration_plot(y_te, raw_te, cal_te, OUTPUTS_DIR / "calibration.png", "final tuned LightGBM")
 
     # ------------------------------------------------------------------ tiers
@@ -247,6 +319,11 @@ def main() -> None:
         "candidates": thr["cutoff_selection"]["candidates"],
     }
 
+    for split_name in ("test", "validation"):                      # (5) Wilson 95% interval of every tier's late rate
+        for tier_name, ts_ in out["tiers"][split_name].items():
+            lo_, hi_ = rigour.wilson_interval(ts_["late_orders"], ts_["orders"])
+            ts_["late_rate_ci_lo"], ts_["late_rate_ci_hi"] = lo_, hi_
+
     p80 = thr["thresholds"]["precision_80"]
     pol_defs = [
         ("Flag all", None, np.ones(len(y_te), int)),
@@ -259,6 +336,40 @@ def main() -> None:
         pol_defs.append(("Cost-minimising (FN=2xFP)", c21, (cal_te >= c21).astype(int)))
     out["policies"] = [{"policy": n, "threshold": t, **policy_metrics(y_te, f)} for n, t, f in pol_defs]
     out["thresholds"] = thr["thresholds"]
+
+    # ---- (2) plain-rule baseline: defined from TRAIN-period findings only, evaluated once on test
+    tr_mode = train_df.groupby("Shipping_Mode")[TARGET_COL].agg(["count", "mean"])
+    sd_tr = train_df[train_df["Shipping_Mode"] == "Same Day"]
+    flag_rule = rigour.rule_flags(test_df["Shipping_Mode"].values, test_df["order_hour"].values)
+    k_rule = int(flag_rule.sum())
+    flag_topk = rigour.topk_flags(raw_te, k_rule)
+    flag_high = cal_te >= high
+    eq = rigour.paired_flag_bootstrap(y_te, flag_topk, flag_rule)          # model top-k minus rule, same flagged share
+    hi_vs = rigour.paired_flag_bootstrap(y_te, flag_high, flag_rule)       # High tier minus rule (different flagged shares)
+    matches = bool(eq["delta_precision_ci"][0] <= 0 <= eq["delta_precision_ci"][1])
+    out["rule_baseline"] = {
+        "definition": rigour.RULE_DEFINITION,
+        "train_evidence": {
+            "orders": int(len(train_df)),
+            "late_rate_by_mode": {m_: {"orders": int(r_["count"]), "late_rate": float(r_["mean"])} for m_, r_ in tr_mode.iterrows()},
+            "same_day_before_noon_late_rate": float(sd_tr[sd_tr.order_hour < rigour.RULE_SAME_DAY_FROM_HOUR][TARGET_COL].mean()),
+            "same_day_from_noon_late_rate": float(sd_tr[sd_tr.order_hour >= rigour.RULE_SAME_DAY_FROM_HOUR][TARGET_COL].mean()),
+        },
+        "rule": policy_metrics(y_te, flag_rule),
+        "high_tier": policy_metrics(y_te, flag_high),
+        "model_top_k": {"k": k_rule, **policy_metrics(y_te, flag_topk)},
+        "equal_share_comparison": {**eq, "k": k_rule, "flagged_share": k_rule / len(y_te)},
+        "high_tier_vs_rule": hi_vs,
+        "top_k_overlap_with_rule": float((flag_topk & flag_rule).sum() / k_rule),     # 1.0 = the model's top-k IS the rule's set
+        "matches_model": matches,
+        "verdict": rigour.rule_verdict(matches, eq["delta_precision"]),
+    }
+
+    # ---- (4) calibration inside each shipping mode (reported, never recalibrated)
+    out["per_mode_calibration"] = {
+        "flag_gap_pp": rigour.CAL_GAP_FLAG_PP,
+        "rows": rigour.per_mode_calibration(test_df["Shipping_Mode"].values, y_te, cal_te),
+        "note": "gap = mean predicted minus observed late rate, calibrated scores; reported only, no per-mode recalibration"}
 
     stab_rows, swings = [], {}
     for name, t in [("High tier", high), ("Precision >= 0.80", p80), ("Max-F1", thr_f1)]:
@@ -292,6 +403,20 @@ def main() -> None:
     # ---------------------------------------------------------------- per mode
     print("[5] Per-shipping-mode, Same Day rule ...")
     out["per_mode"] = jsonable(m06.per_mode_table(test_df, raw_te, cal_te, y_te))
+
+    # ---- who gets flagged, by shipping mode (flagged = High tier) ----
+    flag_te = cal_te >= high
+    modes_te = test_df["Shipping_Mode"].values
+    missed_all = int(((~flag_te) & (y_te == 1)).sum())
+    pmf = []
+    for mode in MODES:
+        k = modes_te == mode
+        late = int((y_te[k] == 1).sum())
+        caught = int((flag_te[k] & (y_te[k] == 1)).sum())
+        pmf.append({"mode": mode, "orders": int(k.sum()), "flagged": int(flag_te[k].sum()), "late": late, "caught": caught,
+                    "missed": late - caught, "recall": (caught / late) if late else None,
+                    "share_of_missed": ((late - caught) / missed_all) if missed_all else 0.0})
+    out["per_mode_flagging"] = pmf
 
     sd = test_df[test_df["Shipping_Mode"] == "Same Day"]
     allp = pd.concat([train_df, val_df, test_df])
@@ -384,9 +509,20 @@ def main() -> None:
         "segment_models": seg,
     }
 
+    # ------------------------------------------------------ payment-type audit (09b_type_audit.py)
+    audit_path = OUTPUTS_DIR / "type_audit.json"
+    if not audit_path.exists():
+        raise FileNotFoundError("outputs/type_audit.json missing: run src/09b_type_audit.py before 10_finalize.py")
+    out["type_audit"] = json.loads(audit_path.read_text(encoding="utf-8"))
+
     out = jsonable(out)
     OUT_JSON.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"\n  Wrote {OUT_JSON}")
+
+    # the live test count is collected AFTER the metrics file exists (test modules read it at import time)
+    out["tests"] = collect_tests()
+    OUT_JSON.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"  Collected {out['tests']['total']} tests in {out['tests']['n_files']} files")
 
     t = out["tiers"]["test"]
     print("\nTIER TABLE (test)")

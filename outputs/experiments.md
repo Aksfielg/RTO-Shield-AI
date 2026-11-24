@@ -4,7 +4,7 @@
 
 ## Conclusions in plain English
 
-**Bottom line: nothing clears the adoption bar, so the final model stays as it is.** A variant must beat the final model on validation ROC-AUC by more than 0.01 and pass the leakage tests (passed: 6 passed in 16.48s). `Late_delivery_risk` remains the primary reported target.
+**Bottom line: nothing clears the adoption bar, so the final model stays as it is.** A variant must beat the final model on validation ROC-AUC by more than 0.01 and pass the leakage tests (passed: 6 passed in 15.35s). `Late_delivery_risk` remains the primary reported target.
 
 1. **Segment specialists.** Standard Class: global 0.529 vs specialist 0.528 (paired delta -0.0013, 95% CI -0.0113 to +0.0075; validation gain -0.0058). Second Class: global 0.567 vs specialist 0.562 (delta -0.0043, CI -0.0207 to +0.0133; validation gain -0.0105). Neither specialist beats the global model by a meaningful margin: the missing signal is in the data, not in the model structure. **Not worth adopting.**
 
@@ -86,5 +86,5 @@ Prevalence on test: late 55.1%, cancel/fraud 4.3%, delivery_failure 59.4%.
 ## Leakage checks
 
 - Static: forbidden / Order-Status columns among model features: none.
-- Pytest (tests/test_no_leakage.py, tests/test_pipeline.py): 6 passed in 16.48s.
+- Pytest (tests/test_no_leakage.py, tests/test_pipeline.py): 6 passed in 15.35s.
 - All variants use the same chronological split and the same leakage-safe features; the alternative target uses Order Status only to BUILD the label, never as an input.

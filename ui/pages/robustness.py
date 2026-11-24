@@ -43,6 +43,19 @@ def render() -> None:
                                 "calibration_error": lambda v: f"{v * 100:+.2f} pp", "pr_auc_lift": "{:.2f}x"})
         st.caption("Ranking metrics use raw model scores. Signal = 🟠 limited when the ROC-AUC 95% bootstrap CI lower bound is below 0.55 "
                    "(which also covers any CI that includes 0.5), otherwise 🟢 informative. PR-AUC lift = PR-AUC / prevalence.")
+        pmc = fm["per_mode_calibration"]
+        st.markdown("**Calibration within shipping mode**")
+        C.styled_table(pd.DataFrame([{"mode": r["mode"], "orders": r["orders"], "mean_predicted": r["mean_predicted"], "observed": r["observed"],
+                                      "gap": f"{r['gap_pp']:+.2f} pp", "ece": r["ece"],
+                                      "flag": f"⚠️ gap above {pmc['flag_gap_pp']:.0f} pp" if r["flagged"] else "within tolerance"}
+                                     for r in pmc["rows"]]),
+                       rename={"mode": "Shipping Mode", "mean_predicted": "Mean Predicted", "observed": "Observed Late Rate",
+                               "gap": "Gap (predicted - observed)", "ece": "ECE (within mode)", "flag": "Flag"},
+                       formats={"orders": "{:,}", "mean_predicted": pc, "observed": pc, "ece": "{:.4f}"})
+        flagged = [r["mode"] for r in pmc["rows"] if r["flagged"]]
+        st.caption((", ".join(flagged) + f" show a mean-predicted vs observed gap above {pmc['flag_gap_pp']:.0f} pp. " if flagged
+                    else f"No shipping mode has a gap above {pmc['flag_gap_pp']:.0f} pp. ")
+                   + "Reported only: the isotonic calibrator is fitted once on validation and is not recalibrated per mode.")
 
     with tab_abl, st.container(border=True):
         C.card_title("Feature ablation study")
@@ -50,6 +63,7 @@ def render() -> None:
         abl = pd.DataFrame(fm["ablation"])
         C.show(charts.ablation_bar(fm["ablation"]), key="rob_abl")
         C.callout("info", "History features", fm["ablation_summary"]["history_verdict"])
+        C.payment_ablation_box(fm)
         abl["roc_ci"] = [f"[{a:.3f}, {b:.3f}]" for a, b in zip(abl["roc_auc_ci_lo"], abl["roc_auc_ci_hi"])]
         abl["delta"] = ["-" if lbl == "All features" else f"{d:+.4f} [{lo:+.4f}, {hi:+.4f}]" + (" *" if sg else "")
                         for lbl, d, lo, hi, sg in zip(abl["label"], abl["delta_roc_vs_all"], abl["delta_ci_lo"], abl["delta_ci_hi"],

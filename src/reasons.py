@@ -63,6 +63,31 @@ _NUMERIC_LABELS: dict[str, str] = {
     "days_since_prev_order":       "Days since previous order",
 }
 
+# ---------------------------------------------------------------------------
+# Payment-type proxy disclosure: every reason / chart label for Type carries a dagger + the footnote below.
+# (Every page reads reasons through this module, so the dagger is inherited everywhere.)
+# ---------------------------------------------------------------------------
+PAYMENT_LABEL = _CAT_PARENT_LABELS["Type"]
+DAGGER = "†"
+TYPE_FOOTNOTE = (f"{DAGGER} Payment-type effects reflect how DataCo labels cancelled/fraud orders "
+                 "(all TRANSFER, all on time), not a real payment risk.")
+
+
+def mark_label(label: str) -> str:
+    """Chart/axis label: 'Payment type' -> 'Payment type†' (other labels unchanged)."""
+    return label + DAGGER if label == PAYMENT_LABEL else label
+
+
+def reason_text(label: str, val_str: str, raises: bool) -> str:
+    """'<factor>: <value> raises|lowers risk'; reasons about payment type end with a dagger."""
+    text = f"{label}: {val_str} {'raises' if raises else 'lowers'} risk"
+    return f"{text} {DAGGER}" if label == PAYMENT_LABEL else text
+
+
+def has_payment_reason(reasons) -> bool:
+    return any(str(r).rstrip().endswith(DAGGER) for r in reasons)
+
+
 _DOW_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _MONTH_NAMES = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -234,8 +259,6 @@ def get_reason_codes(
         lbl     = labels[idx]
         shap_v  = values[idx]
         v_str   = val_strs[idx]
-        dir_str = "raises" if shap_v > 0 else "lowers"
-
-        reasons.append(f"{lbl}: {v_str} {dir_str} risk")
+        reasons.append(reason_text(lbl, v_str, bool(shap_v > 0)))
 
     return reasons

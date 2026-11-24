@@ -29,6 +29,8 @@ def render() -> None:
         C.kpi_card("Standard + Second Class AUC", f"{std['roc_auc']:.2f} / {sec['roc_auc']:.2f}",
                    f"near chance on {C.fmt_pct(limited_share, clip=False)} of volume")
 
+    st.caption(C.payment_caption(fm))
+
     w1, w2, w3 = st.columns(3)
     with w1, st.container(border=True, height=330):
         C.card_title("What works")

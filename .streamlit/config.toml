@@ -8,6 +8,10 @@ font = "sans-serif"
 baseRadius = "large"
 borderColor = "#E2E8F0"
 
+[client]
+# "viewer" hides the developer toolbar items (Deploy button, rerun, clear cache) for demos
+toolbarMode = "viewer"
+
 [browser]
 gatherUsageStats = false
 

@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import ast
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 
 from config import CATEGORICAL_FEATURES, FORBIDDEN_FEATURES, NUMERIC_FEATURES, TARGET_COL
 from ui import components as C
 from ui import data
-
-TESTS_DIR = Path(__file__).resolve().parents[2] / "tests"
 
 PIPELINE_DOT = """
 digraph G {
@@ -33,19 +28,6 @@ digraph G {
   fin -> app;
 }
 """
-
-
-def _test_inventory() -> pd.DataFrame:
-    rows = []
-    for p in sorted(TESTS_DIR.glob("test_*.py")):
-        tree = ast.parse(p.read_text(encoding="utf-8"))
-        names = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")]
-        if not names:                      # script-style smoke tests collect no pytest items
-            continue
-        doc = [ln.strip() for ln in (ast.get_docstring(tree) or "").splitlines()]
-        text = [ln for ln in doc if ln and set(ln) - set("=-") and not ln.startswith("tests/") and not ln.startswith("Run")]
-        rows.append({"file": p.name, "tests": len(names), "purpose": text[0] if text else ""})
-    return pd.DataFrame(rows)
 
 
 def render() -> None:
@@ -86,8 +68,10 @@ def render() -> None:
             f"- **Label-shuffle check:** retraining on shuffled labels gives AUC {ls['val_roc_auc']:.3f} (validation) / {ls['test_roc_auc']:.3f} (test): "
             f"{ls['status']}.\n"
             "- **One-shot test:** thresholds, tiers and calibration are chosen on validation; the test set is used only to report.")
-        st.markdown("**Automated tests (pytest)**")
-        C.styled_table(_test_inventory(), rename={"file": "Test File", "tests": "Tests", "purpose": "What It Guards"})
+        tests = fm["tests"]
+        st.markdown(f"**Automated tests (pytest): {tests['total']:,} tests in {tests['n_files']} files**")
+        C.styled_table(pd.DataFrame(tests["by_file"]), rename={"file": "Test File", "tests": "Tests", "description": "What It Guards"}, wrap=True)
+        st.caption(f"Counted live with `{tests['source']}`; the total above is the number of tests the suite collects.")
 
     with st.container(border=True):
         C.card_title("4. Split dates")

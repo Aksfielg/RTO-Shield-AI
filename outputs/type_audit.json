@@ -1,0 +1,244 @@
+{
+  "description": "Model A = final model (with payment features); Model B = same tuned hyper-parameters, TRAIN only, without payment features.",
+  "drop_list": {
+    "source": "06_robustness.ABLATION_SPECS['No payment/is_cash']",
+    "dropped_features": [
+      "Type",
+      "is_cash"
+    ],
+    "kept_categorical": [
+      "Shipping_Mode",
+      "Market",
+      "Order_Region",
+      "Order_Country",
+      "Customer_Segment",
+      "Department_Name",
+      "main_item_category"
+    ],
+    "kept_numeric": [
+      "Days_for_shipment_scheduled",
+      "order_value",
+      "n_items",
+      "avg_discount_rate",
+      "value_per_item",
+      "is_weekend",
+      "is_night_order",
+      "high_discount_flag",
+      "n_distinct_categories",
+      "order_month",
+      "order_dow",
+      "order_hour",
+      "customer_prev_orders",
+      "customer_prev_late_rate",
+      "country_prev_orders",
+      "country_prev_late_rate",
+      "customer_prev_cash_share",
+      "days_since_prev_order"
+    ]
+  },
+  "hyperparameters": {
+    "learning_rate": 0.009304746441371432,
+    "max_depth": 4,
+    "n_estimators": 200,
+    "colsample_bytree": 0.5866823267538861,
+    "subsample": 0.6039708314340944,
+    "min_child_weight": 10,
+    "reg_lambda": 0.5019072833961319
+  },
+  "n_bootstrap": 1000,
+  "min_useful_delta": 0.005,
+  "all_orders": {
+    "n": 9863,
+    "prevalence": 0.5505424313089323,
+    "model_a": {
+      "roc_auc": 0.7715873415481329,
+      "roc_auc_ci": [
+        0.7625083633677804,
+        0.7798400410340799
+      ],
+      "pr_auc": 0.8361796910036292,
+      "pr_auc_ci": [
+        0.8284337850169651,
+        0.8442105596681221
+      ]
+    },
+    "model_b": {
+      "roc_auc": 0.7551234484045035,
+      "roc_auc_ci": [
+        0.7455295154560339,
+        0.7637114541627362
+      ],
+      "pr_auc": 0.8162443071553795,
+      "pr_auc_ci": [
+        0.8062753335535274,
+        0.8263672201272473
+      ]
+    },
+    "delta_roc_auc": {
+      "point": 0.016463893143629393,
+      "ci": [
+        0.010529409978473537,
+        0.022221702870939435
+      ]
+    },
+    "delta_pr_auc": {
+      "point": 0.019935383848249666,
+      "ci": [
+        0.015347469273565537,
+        0.02440455363061848
+      ]
+    }
+  },
+  "cleaned_orders": {
+    "n": 9437,
+    "prevalence": 0.5753947228992264,
+    "model_a": {
+      "roc_auc": 0.775008399205626,
+      "roc_auc_ci": [
+        0.7656330131465903,
+        0.7842979177214465
+      ],
+      "pr_auc": 0.8562635755888506,
+      "pr_auc_ci": [
+        0.8486522108648686,
+        0.8638146465863022
+      ]
+    },
+    "model_b": {
+      "roc_auc": 0.7718339590798975,
+      "roc_auc_ci": [
+        0.7626029290748654,
+        0.7807797261933818
+      ],
+      "pr_auc": 0.8554430750931012,
+      "pr_auc_ci": [
+        0.8479661662233571,
+        0.8630197038667493
+      ]
+    },
+    "delta_roc_auc": {
+      "point": 0.0031744401257285393,
+      "ci": [
+        -0.0030511883017254717,
+        0.009063744662104703
+      ]
+    },
+    "delta_pr_auc": {
+      "point": 0.0008205004957493323,
+      "ci": [
+        -0.0023919652581574275,
+        0.003807957633719727
+      ]
+    },
+    "removed_orders": 426
+  },
+  "tiers": {
+    "model_a": {
+      "cutoffs": {
+        "low_max": 0.4657,
+        "high_min": 0.7423
+      },
+      "cutoff_verified_on_test": {
+        "in_gap": true,
+        "big_clusters_split": 0,
+        "share_within_0.02": 0.0
+      },
+      "all_orders": {
+        "precision": 0.883619344773791,
+        "recall": 0.5215469613259669,
+        "flagged_share": 0.3249518402108892,
+        "flagged_orders": 3205
+      },
+      "cleaned_orders": {
+        "precision": 0.9094412331406551,
+        "recall": 0.5215469613259669,
+        "flagged_share": 0.3299777471654127,
+        "flagged_orders": 3114
+      }
+    },
+    "model_b": {
+      "cutoffs": {
+        "low_max": 0.45,
+        "high_min": 0.8509
+      },
+      "cutoff_verified_on_test": {
+        "in_gap": true,
+        "big_clusters_split": 0,
+        "share_within_0.02": 0.0
+      },
+      "all_orders": {
+        "precision": 0.9491137793024585,
+        "recall": 0.30570902394106814,
+        "flagged_share": 0.177329412957518,
+        "flagged_orders": 1749
+      },
+      "cleaned_orders": {
+        "precision": 1.0,
+        "recall": 0.30570902394106814,
+        "flagged_share": 0.17590335911836388,
+        "flagged_orders": 1660
+      },
+      "status": "ok"
+    }
+  },
+  "equal_coverage": {
+    "all_orders": {
+      "k": 3205,
+      "n": 9863,
+      "flagged_share": 0.3249518402108892,
+      "model_a": {
+        "precision": 0.883619344773791,
+        "recall": 0.5215469613259669
+      },
+      "model_b": {
+        "precision": 0.8705148205928237,
+        "recall": 0.5138121546961326
+      },
+      "delta_precision": {
+        "point": 0.013104524180967303,
+        "ci": [
+          0.004583716823799042,
+          0.02086120381315881
+        ]
+      },
+      "delta_recall": {
+        "point": 0.007734806629834279,
+        "ci": [
+          -0.001120410165195548,
+          0.016367518570468025
+        ]
+      }
+    },
+    "cleaned_orders": {
+      "k": 3114,
+      "n": 9437,
+      "flagged_share": 0.3299777471654127,
+      "model_a": {
+        "precision": 0.9094412331406551,
+        "recall": 0.5215469613259669
+      },
+      "model_b": {
+        "precision": 0.9113680154142582,
+        "recall": 0.5226519337016574
+      },
+      "delta_precision": {
+        "point": -0.0019267822736031004,
+        "ci": [
+          -0.008482028989784918,
+          0.004528577681694166
+        ]
+      },
+      "delta_recall": {
+        "point": -0.001104972375690516,
+        "ci": [
+          -0.009558423316293193,
+          0.007059880110435085
+        ]
+      }
+    }
+  },
+  "model_a_refit_train_only_roc_auc_all": 0.7715873415481329,
+  "cleaned_delta_ci_includes_zero": true,
+  "cleaned_delta_below_min": true,
+  "stop_and_review": true
+}

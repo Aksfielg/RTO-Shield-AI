@@ -38,6 +38,7 @@ SCRIPTS = [
     "07_predict_demo.py",
     "08_sanity_checks.py",
     "09_verification.py",
+    "09b_type_audit.py",           # payment-type proxy audit -> outputs/type_audit.json
     "10_finalize.py",              # writes outputs/final_metrics.json
     "11_experiments.py",           # read-only experiments -> outputs/experiments.md (never replaces the model)
     "11_render_docs.py",           # README / MODEL_CARD / report_tables from JSON

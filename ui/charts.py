@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from sklearn.metrics import precision_recall_curve, roc_curve
 
-from reasons import _CAT_PARENT_LABELS, _NUMERIC_LABELS
+from reasons import _CAT_PARENT_LABELS, _NUMERIC_LABELS, mark_label
 from ui import theme
 from ui.components import fmt_pct
 from ui.theme import AMBER, GREEN, INDIGO, INDIGO_LIGHT, MUTED, RED, SLATE, SLATE_LIGHT, TIER_BG, TIER_COLORS, style
@@ -26,7 +26,11 @@ def pretty_feature(name: str) -> str:
             name = name[len(prefix):]
     for col in sorted(_CAT_PARENT_LABELS, key=len, reverse=True):
         if name.startswith(col + "_"):
-            return f"{_CAT_PARENT_LABELS[col]}: {name[len(col) + 1:]}"
+            value = name[len(col) + 1:]
+            if col == "Order_Country":
+                from ui.data import en_country          # display only; lazy import avoids a cycle at module load
+                value = en_country(value)
+            return f"{mark_label(_CAT_PARENT_LABELS[col])}: {value}"
     return _NUMERIC_LABELS.get(name, name.replace("_", " "))
 
 
@@ -52,28 +56,28 @@ def gauge(score: float, low_cut: float, high_cut: float) -> go.Figure:
     ))
     fig.add_annotation(text=f"<b>{fmt_pct(score)}</b>", xref="paper", yref="paper", x=0.5, y=0.08,
                        showarrow=False, font=dict(size=38, color=theme.INK))
-    fig.update_layout(margin=dict(l=20, r=20, t=20, b=10))
-    return style(fig, height=230)
+    fig.update_layout(margin=dict(l=50, r=50, t=30, b=10))      # room for the "0%" / "100%" end tick labels
+    return style(fig, height=240)
 
 
 def grouped_shap_bar(labels, values, val_strs, top_k: int = 6) -> go.Figure:
     order = np.argsort(np.abs(values))[::-1][:top_k][::-1]
     vals = [float(values[i]) for i in order]
-    names = [f"{labels[i]} ({val_strs[i]})" for i in order]
+    names = [f"{mark_label(labels[i])} ({val_strs[i]})" for i in order]
     fig = go.Figure(go.Bar(
         x=vals, y=names, orientation="h", marker_color=[RED if v > 0 else GREEN for v in vals],
         hovertext=[f"<b>{n}</b><br>SHAP log-odds: {v:+.4f}<br>{'Raises' if v > 0 else 'Lowers'} risk" for n, v in zip(names, vals)],
         hoverinfo="text",
     ))
-    fig.update_xaxes(title="SHAP impact (log-odds)  |  red raises risk, green lowers it", zeroline=True)
+    fig.update_xaxes(title="SHAP impact (log-odds)", zeroline=True)
     fig.update_layout(margin=dict(l=10, r=20, t=45, b=40))
-    return style(fig, height=290, title="Key risk drivers (grouped factors)")
+    return style(fig, height=290, title="Key risk drivers (red raises risk, green lowers it)")
 
 
 def shap_waterfall(labels, values, val_strs, base_value: float, top_k: int = 8) -> go.Figure:
     order = np.argsort(np.abs(values))[::-1]
     top, rest = order[:top_k], order[top_k:]
-    names = ["Base value (average log-odds)"] + [f"{labels[i]} ({val_strs[i]})" for i in top]
+    names = ["Base value (average log-odds)"] + [f"{mark_label(labels[i])} ({val_strs[i]})" for i in top]
     vals = [base_value] + [float(values[i]) for i in top]
     measures = ["absolute"] + ["relative"] * len(top)
     if len(rest):
@@ -91,9 +95,9 @@ def shap_waterfall(labels, values, val_strs, base_value: float, top_k: int = 8) 
               for v, m in zip(vals, measures)],
         textposition="outside", cliponaxis=False,
     ))
-    fig.update_yaxes(autorange="reversed")
+    fig.update_yaxes(autorange="reversed", ticklabelstandoff=10)
     fig.update_xaxes(title="Log-odds")
-    fig.update_layout(margin=dict(l=10, r=70, t=45, b=40), showlegend=False)
+    fig.update_layout(margin=dict(l=10, r=40, t=45, b=40), showlegend=False)
     return style(fig, height=380, title="Local SHAP attribution (grouped factors)")
 
 
@@ -143,6 +147,27 @@ def reliability(cal: dict) -> go.Figure:
     return style(fig, 380, "Reliability diagram (final model, test set)")
 
 
+def reliability_ef(ef: dict) -> go.Figure:
+    """Reliability diagram with 10 equal-frequency bins: observed late rate vs mean predicted, n per bin, bootstrap 95% CI band."""
+    cal, raw = ef["calibrated"], ef["raw"]
+    fig = go.Figure()
+    fig.add_scatter(x=[0, 1], y=[0, 1], mode="lines", name="Perfect calibration", line=dict(color=SLATE, dash="dash"))
+    fig.add_scatter(x=[b["mean_predicted"] for b in raw], y=[b["observed"] for b in raw], mode="lines+markers", name="Raw scores",
+                    line=dict(color=SLATE_LIGHT, width=2), marker=dict(size=6, color=SLATE),
+                    hovertext=[f"Raw, bin {b['bin']} (n = {b['n']:,})<br>predicted {b['mean_predicted']:.1%}, observed {b['observed']:.1%}" for b in raw],
+                    hoverinfo="text")
+    x = [b["mean_predicted"] for b in cal]
+    fig.add_scatter(x=x + x[::-1], y=[b["ci_hi"] for b in cal] + [b["ci_lo"] for b in cal][::-1], fill="toself",
+                    fillcolor="rgba(79,70,229,0.16)", line=dict(width=0), name="Bootstrap 95% CI", hoverinfo="skip")
+    fig.add_scatter(x=x, y=[b["observed"] for b in cal], mode="lines+markers", name="Isotonic-calibrated", line=dict(color=INDIGO, width=2.5),
+                    marker=dict(size=9, color=INDIGO),
+                    hovertext=[f"Calibrated, bin {b['bin']} (n = {b['n']:,})<br>predicted {b['mean_predicted']:.1%}, observed {b['observed']:.1%}"
+                               f"<br>95% CI [{b['ci_lo']:.1%}, {b['ci_hi']:.1%}]" for b in cal], hoverinfo="text")
+    fig.update_xaxes(title="Mean predicted probability (10 equal-frequency bins)", range=[0, 1.02], tickformat=".0%")
+    fig.update_yaxes(title="Observed late fraction", range=[0, 1.02], tickformat=".0%")
+    return style(fig, 400, "Reliability diagram (final model, test set)")
+
+
 def lift_bar(deciles: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Bar(x=deciles["decile"], y=deciles["lift"], marker_color=INDIGO,
                            text=[f"{v:.2f}x" for v in deciles["lift"]], textposition="outside"))
@@ -184,10 +209,11 @@ def tier_late_rate_bar(tier_stats: dict, base_rate: float) -> go.Figure:
 # ---------------------------------------------------------------------------
 def importance_grouped(grouped: list[dict]) -> go.Figure:
     g = grouped[::-1]
-    fig = go.Figure(go.Bar(x=[r["share"] for r in g], y=[r["factor"] for r in g], orientation="h", marker_color=INDIGO,
+    fig = go.Figure(go.Bar(x=[r["share"] for r in g], y=[mark_label(r["factor"]) for r in g], orientation="h", marker_color=INDIGO,
                            text=[f"{r['share'] * 100:.1f}%" for r in g], textposition="outside"))
     fig.update_xaxes(title="Share of total mean |SHAP|", tickformat=".0%")
-    fig.update_layout(showlegend=False)
+    fig.update_yaxes(ticklabelstandoff=8)
+    fig.update_layout(showlegend=False, margin=dict(l=10, r=30, t=45, b=40))
     return style(fig, 340, "Global importance by business factor")
 
 
@@ -197,7 +223,8 @@ def importance_encoded(top: list[dict]) -> go.Figure:
                            orientation="h", marker_color=INDIGO_LIGHT, text=[f"{r['mean_abs_shap']:.3f}" for r in t],
                            textposition="outside"))
     fig.update_xaxes(title="Mean |SHAP| (log-odds)")
-    fig.update_layout(showlegend=False)
+    fig.update_yaxes(ticklabelstandoff=8)
+    fig.update_layout(showlegend=False, margin=dict(l=10, r=30, t=45, b=40))
     return style(fig, 380, "Top encoded features")
 
 
@@ -312,12 +339,17 @@ def tier_counts_bar(counts: dict, shares: dict, labels: dict) -> go.Figure:
 
 
 def predicted_vs_actual(rows: list[dict]) -> go.Figure:
+    """Mean predicted vs actual late rate per tier; tiers flagged ``suppressed`` (n too small) are greyed, with their n shown."""
+    labels = [f"{r['tier']}<br>n = {r['n']:,}" + ("<br>(suppressed, too few)" if r.get("suppressed") else "") for r in rows]
+    grey, grey_dark = "#E2E8F0", "#CBD5E1"
     fig = go.Figure()
-    fig.add_bar(x=[r["tier"] for r in rows], y=[r["mean_predicted"] for r in rows], name="Mean predicted", marker_color=INDIGO)
-    fig.add_bar(x=[r["tier"] for r in rows], y=[r["actual_late_rate"] for r in rows], name="Actual late rate", marker_color=SLATE)
+    fig.add_bar(x=labels, y=[r["mean_predicted"] for r in rows], name="Mean predicted",
+                marker_color=[grey if r.get("suppressed") else INDIGO for r in rows])
+    fig.add_bar(x=labels, y=[r["actual_late_rate"] for r in rows], name="Actual late rate",
+                marker_color=[grey_dark if r.get("suppressed") else SLATE for r in rows])
     fig.update_yaxes(tickformat=".0%", range=[0, 1.05])
     fig.update_layout(barmode="group")
-    return style(fig, 280, "Predicted vs actual late rate by tier")
+    return style(fig, 300, "Predicted vs actual late rate by tier")
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +390,8 @@ def tier_by_mode(ct: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     for t in ["Low", "Medium", "High"]:
         if t in ct.columns:
-            fig.add_bar(x=ct.index, y=ct[t], name=t, marker_color=TIER_COLORS[t], text=ct[t], textposition="inside")
+            fig.add_bar(x=ct.index, y=ct[t], name=t, marker_color=TIER_COLORS[t],
+                    text=[str(v) if v >= max(1, 0.12 * ct.sum(axis=1).max()) else "" for v in ct[t]], textposition="inside")
     fig.update_layout(barmode="stack")
     fig.update_yaxes(title="Orders")
     return style(fig, 300, "Tier counts by shipping mode")

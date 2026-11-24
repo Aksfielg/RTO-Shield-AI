@@ -2,7 +2,7 @@
   "leakage": {
     "ran": true,
     "passed": true,
-    "detail": "6 passed in 16.48s",
+    "detail": "6 passed in 15.35s",
     "forbidden_feature_hits": []
   },
   "min_gain": 0.01,
