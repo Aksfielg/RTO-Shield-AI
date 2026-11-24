@@ -43,6 +43,9 @@ if str(SRC_DIR) not in sys.path:
 
 from config import (
     RAW_CSV,
+    RAW_CSV_DOI,
+    RAW_CSV_SHA256,
+    RAW_CSV_SHAPE,
     PROCESSED_DIR,
     TRAIN_FRAC,
     TARGET_COL,
@@ -81,6 +84,42 @@ AUX_TARGET_COL = "aux_target_cancel_fraud"
 # ===========================================================================
 # 1. Load raw data
 # ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Raw-data check: the pipeline is only validated on one exact file
+# ---------------------------------------------------------------------------
+def _download_help() -> str:
+    return (f"Download 'DataCo Smart Supply Chain for Big Data Analysis', Mendeley Data V5 (https://doi.org/{RAW_CSV_DOI}), "
+            f"save DataCoSupplyChainDataset.csv into data/raw/, and read it with encoding='latin-1' (it is not UTF-8). "
+            f"Expected: {RAW_CSV_SHAPE[0]:,} rows x {RAW_CSV_SHAPE[1]} columns, SHA-256 {RAW_CSV_SHA256}.")
+
+
+def sha256_of(path: Path, chunk: int = 1 << 20) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while block := fh.read(chunk):
+            h.update(block)
+    return h.hexdigest()
+
+
+def verify_raw_csv(path: Path = RAW_CSV, expected_sha: str = RAW_CSV_SHA256) -> str:
+    """Stop with a clear message unless the raw CSV exists and has the expected SHA-256. Returns the digest."""
+    if not Path(path).exists():
+        raise SystemExit(f"RAW DATA MISSING: {path} does not exist.\n{_download_help()}")
+    digest = sha256_of(Path(path))
+    if digest != expected_sha:
+        raise SystemExit(f"RAW DATA MISMATCH: {path} has SHA-256 {digest}, which is not the file this project was built on.\n"
+                         f"{_download_help()}")
+    return digest
+
+
+def verify_raw_shape(df: pd.DataFrame, expected: tuple = RAW_CSV_SHAPE) -> None:
+    """Stop unless the loaded frame has the expected rows x columns (a wrong encoding or a truncated download shows up here)."""
+    if tuple(df.shape) != tuple(expected):
+        raise SystemExit(f"RAW DATA SHAPE MISMATCH: read {df.shape[0]:,} rows x {df.shape[1]} columns, expected "
+                         f"{expected[0]:,} x {expected[1]}.\n{_download_help()}")
+
 
 def load_raw() -> pd.DataFrame:
     df = pd.read_csv(RAW_CSV, encoding="latin-1", low_memory=False)
@@ -444,7 +483,9 @@ def main() -> None:
 
     # -- 8.1 Load ----------------------------------------------------------
     print("\n[1/7] Loading raw CSV …")
+    verify_raw_csv()
     raw = load_raw()
+    verify_raw_shape(raw)
     print(f"      Raw rows: {len(raw):,}  |  columns: {raw.shape[1]}")
 
     # -- 8.2 Parse dates ---------------------------------------------------

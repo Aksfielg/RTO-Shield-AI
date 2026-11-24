@@ -18,6 +18,11 @@ PROJECT_ROOT   = Path(__file__).resolve().parent.parent
 # Data paths
 # ---------------------------------------------------------------------------
 RAW_CSV        = PROJECT_ROOT / "data" / "raw"  / "DataCoSupplyChainDataset.csv"
+
+# The exact file the pipeline was built and validated on (Mendeley Data V5).  01_prepare.py refuses to run on anything else.
+RAW_CSV_SHA256 = "fa6d022ed437155e1a2f0378710602848703c8a7f203f7ff5d77805bf8480aa6"
+RAW_CSV_SHAPE  = (180_519, 53)                      # rows x columns, read with encoding="latin-1"
+RAW_CSV_DOI    = "10.17632/8gx2fvg2k6.5"
 PROCESSED_DIR  = PROJECT_ROOT / "data" / "processed"
 MODELS_DIR     = PROJECT_ROOT / "models"
 OUTPUTS_DIR    = PROJECT_ROOT / "outputs"
