@@ -48,9 +48,20 @@ MODEL_LABELS = {
 _TOKEN = re.compile(r"([^.\[\]]+)|\[([^\]=]+)=([^\]]+)\]|\[(\d+)\]")
 
 
+def _pyproject() -> dict:
+    """Facts from pyproject.toml the documents quote (so the supported Python range has one source)."""
+    import tomllib
+    meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    minimum = meta["requires-python"].replace(">=", "").strip()
+    return {"requires_python": meta["requires-python"], "python_min": minimum, "version": meta["version"]}
+
+
+P = _pyproject()
+
+
 def lookup(path: str):
     root, _, rest = path.partition(".")
-    cur = {"M": M, "T": T}[root]
+    cur = {"M": M, "T": T, "P": P}[root]
     for m in re.finditer(r"\[([^\]=]+)=([^\]]+)\]|\[(\d+)\]|([^.\[\]]+)", rest):
         k, v, idx, key = m.groups()
         if key is not None:

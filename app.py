@@ -20,6 +20,10 @@ Run:  streamlit run app.py
 
 from __future__ import annotations
 
+import os
+
+os.environ.setdefault("PYTHONUTF8", "1")        # any subprocess the app starts inherits UTF-8 mode (Windows)
+
 import sys
 from pathlib import Path
 

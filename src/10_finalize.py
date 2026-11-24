@@ -170,6 +170,13 @@ def main() -> None:
     m09 = load_mod("m09", "09_verification.py")
 
     thr = json.loads((MODELS_DIR / "thresholds.json").read_text(encoding="utf-8"))
+    # run_all.py records run.* (wall-clock minutes, Python version) AFTER this step; keep the previous run's values so a
+    # stand-alone `python src/10_finalize.py` never drops them
+    import platform
+    prev = json.loads(OUT_JSON.read_text(encoding="utf-8")) if OUT_JSON.exists() else {}
+    run_block = prev.get("run") or {"total_minutes": None, "python": platform.python_version(),
+                                    "python_short": ".".join(platform.python_version().split(".")[:2]),
+                                    "platform": platform.platform(), "cpu_threads": None, "finished": None}
     meta = json.loads((OUTPUTS_DIR / "final_results_meta.json").read_text(encoding="utf-8"))
 
     # ------------------------------------------------------------------ data
@@ -516,6 +523,7 @@ def main() -> None:
     out["type_audit"] = json.loads(audit_path.read_text(encoding="utf-8"))
 
     out = jsonable(out)
+    out["run"] = run_block
     OUT_JSON.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"\n  Wrote {OUT_JSON}")
 

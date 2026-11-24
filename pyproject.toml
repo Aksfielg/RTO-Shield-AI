@@ -1,0 +1,19 @@
+[project]
+name = "rto-shield-ai-model1"
+version = "1.0.0"
+description = "Pre-dispatch late-delivery risk scoring on public DataCo data: calibrated probabilities, risk tiers, SHAP reasons and a Streamlit dashboard (academic prototype; not an RTO or COD model)."
+readme = "README.md"
+# Highest Python requirement among the pinned direct dependencies (numpy, scipy, xgboost and shap all need 3.12+).
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Shitij Chanana" },
+    { name = "Saksham Singla" },
+    { name = "Rishabh Kumar" },
+]
+
+[project.urls]
+Dataset = "https://doi.org/10.17632/8gx2fvg2k6.5"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

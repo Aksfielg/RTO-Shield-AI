@@ -204,6 +204,8 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 
 **Automated tests:** the repository ships {{ M.tests.total | int }} automated tests (pytest, {{ M.tests.n_files | int }} files) covering leakage, split chronology, metric reporting, document/app consistency, the payment-type disclosure, reproducibility and every dashboard page.
 
+**Reproducibility:** a full `python run_all.py` took {{ M.run.total_minutes | f1 }} minutes on Python {{ M.run.python }} ({{ M.run.platform }}); the supported range is Python {{ P.python_min }} or newer. The raw dataset (Mendeley Data V5, {{ M.dataset.raw_rows | int }} rows × {{ M.dataset.raw_columns | int }} columns, SHA-256 `{{ M.dataset.sha256 | raw }}`) is verified before processing and is not redistributed (CC BY 4.0). Code licence: MIT (`LICENSE`).
+
 ## 11. Files
 
 | File | Description |

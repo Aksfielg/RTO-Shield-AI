@@ -14,11 +14,20 @@ so it automatically picks up the venv when invoked as:
 """
 
 import os
+
+os.environ.setdefault("PYTHONUTF8", "1")        # child scripts inherit UTF-8 mode on Windows (cp1252 consoles crash on the banners)
+
+import json
+import platform
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
+for _stream in (sys.stdout, sys.stderr):        # this process prints "—" and similar too; make that safe on a cp1252 console
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 # ---------------------------------------------------------------------------
 # Config
@@ -102,6 +111,7 @@ def main():
             f"RTO Shield AI — Full Pipeline Run\n"
             f"Started:  {ts()}\n"
             f"Python:   {sys.executable}\n"
+            f"Python version: {platform.python_version()}\n"
             f"{'=' * 70}\n"
         )
         print(banner)
@@ -121,9 +131,12 @@ def main():
                 log_fh.write(msg)
 
         total_elapsed = time.time() - start_time
+        total_minutes = round(total_elapsed / 60, 1)
         summary = (
             f"\n{'=' * 70}\n"
-            f"Pipeline complete.  Elapsed: {total_elapsed / 60:.1f} min\n"
+            f"Pipeline complete.  Elapsed: {total_minutes:.1f} min\n"
+            f"Total minutes: {total_minutes:.1f}\n"
+            f"Python version: {platform.python_version()}\n"
             f"Failures: {failures if failures else 'None'}\n"
             f"Log saved to: {LOG_FILE}\n"
         )
@@ -132,6 +145,26 @@ def main():
 
     if failures:
         sys.exit(1)
+
+    record_run(total_minutes)
+
+
+def record_run(total_minutes: float) -> None:
+    """Store wall-clock minutes and the Python version in final_metrics.json (run.*), then re-render the documents from it."""
+    fm_path = OUTPUTS_DIR / "final_metrics.json"
+    if not fm_path.exists():
+        return
+    fm = json.loads(fm_path.read_text(encoding="utf-8"))
+    ver = platform.python_version()
+    fm["run"] = {"total_minutes": total_minutes, "python": ver, "python_short": ".".join(ver.split(".")[:2]),
+                 "platform": platform.platform(), "cpu_threads": os.cpu_count(), "finished": ts()}
+    fm_path.write_text(json.dumps(fm, indent=2), encoding="utf-8")
+    print(f"[run] recorded run.total_minutes={total_minutes} run.python={ver} in {fm_path.name}; re-rendering documents")
+    rc = subprocess.run([sys.executable, str(PROJECT_ROOT / "src" / "11_render_docs.py")], cwd=str(PROJECT_ROOT),
+                        env={**os.environ, "PYTHONUTF8": "1"}).returncode
+    if rc != 0:
+        print("[run] document re-render FAILED")
+        sys.exit(rc)
 
 
 if __name__ == "__main__":

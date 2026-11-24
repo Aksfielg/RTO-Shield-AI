@@ -2225,5 +2225,13 @@
         "description": "Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders."
       }
     ]
+  },
+  "run": {
+    "total_minutes": 9.7,
+    "python": "3.13.3",
+    "python_short": "3.13",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "cpu_threads": 12,
+    "finished": null
   }
 }
