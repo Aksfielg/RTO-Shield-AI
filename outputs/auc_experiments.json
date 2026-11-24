@@ -1,0 +1,262 @@
+{
+  "generated": "2026-11-24T13:52:24",
+  "quick": false,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "baseline": {
+    "val_auc_final_metrics": 0.7676202379471874,
+    "val_auc_refit_mean": 0.7677011690088297,
+    "val_auc_refit_std": 0.0005673719979372236,
+    "backtest_final_metrics": 0.77024,
+    "backtest_refit": null
+  },
+  "acceptance": {
+    "delta_min": 0.005,
+    "shuffle_range": [
+      0.47,
+      0.53
+    ],
+    "mode_cap": 0.6,
+    "ece_cap": 0.015
+  },
+  "results": [
+    {
+      "key": "E1",
+      "title": "E1 native categorical LightGBM (no one-hot)",
+      "n_features": 27,
+      "val_auc_mean": 0.7686755959043237,
+      "val_auc_std": 0.0009028406129568714,
+      "delta": 0.0009744268954938962,
+      "delta_ci": [
+        -0.0028588085727080464,
+        0.00479198315086688
+      ],
+      "runtime_s": 47.8,
+      "rule_a": false,
+      "rule_b": true,
+      "notes": "Optuna 60 trials, train-CV AUC 0.7751; n_estimators 50; params {'num_leaves': 7, 'max_depth': 7, 'learning_rate': 0.027501695148428665, 'min_child_samples': 141, 'colsample_bytree': 0.9289296029621998, 'subsample': 0.6992424304265845, 'reg_lambda': 3.401424598465495, 'cat_smooth': 1.8078819759395703, 'min_data_per_group': 65, 'max_cat_to_onehot': 11}",
+      "per_mode_val": {
+        "Standard Class": 0.5232537335919697,
+        "Second Class": 0.5721017206000283
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E2",
+      "title": "E2 wider Optuna search (one-hot)",
+      "n_features": 27,
+      "val_auc_mean": 0.7664975500559632,
+      "val_auc_std": 0.0008763784405141308,
+      "delta": -0.0012036189528665587,
+      "delta_ci": [
+        -0.0037197252637615765,
+        0.0013013776547513612
+      ],
+      "runtime_s": 101.0,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "Optuna 100 trials (TPE), train-CV AUC 0.7751; n_estimators 50; params {'num_leaves': 57, 'max_depth': 6, 'learning_rate': 0.018579325312888636, 'min_child_samples': 137, 'colsample_bytree': 0.7321079175891051, 'subsample': 0.8205986281164032, 'reg_alpha': 6.19888234485711, 'reg_lambda': 1.144426507873251, 'min_split_gain': 0.21565889479493044}",
+      "per_mode_val": {
+        "Standard Class": 0.5139081690506611,
+        "Second Class": 0.5739974468135289
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E3",
+      "title": "E3 order-time interaction features",
+      "n_features": 32,
+      "val_auc_mean": 0.7672674169879368,
+      "val_auc_std": 0.0006151972361431461,
+      "delta": -0.0004337520208929524,
+      "delta_ci": [
+        -0.0014921617793899867,
+        0.0006021191601020758
+      ],
+      "runtime_s": 6.0,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "baseline hyper-parameters; +same_day_after_noon, mode x hour bucket, mode x day-of-week, is_month_end, days_to_weekend",
+      "per_mode_val": {
+        "Standard Class": 0.5162327742320452,
+        "Second Class": 0.5637854379923581
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E4a",
+      "title": "E4a target encoding ADDED to one-hot",
+      "n_features": 31,
+      "val_auc_mean": 0.7672678481117605,
+      "val_auc_std": 0.0005952591432266091,
+      "delta": -0.0004333208970692004,
+      "delta_ci": [
+        -0.0011324810826528458,
+        0.0002253830294525494
+      ],
+      "runtime_s": 6.7,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "outcome-gated (outcome_known_date < order time), smoothing k=20, prior = training-period late rate",
+      "per_mode_val": {
+        "Standard Class": 0.5182988008496542,
+        "Second Class": 0.5656155655927166
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E4b",
+      "title": "E4b target encoding REPLACING one-hot of those 4 columns",
+      "n_features": 27,
+      "val_auc_mean": 0.7679733117771421,
+      "val_auc_std": 0.00040415107777702175,
+      "delta": 0.0002721427683123778,
+      "delta_ci": [
+        -0.0011554393682494874,
+        0.0018073064857370888
+      ],
+      "runtime_s": 4.2,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "outcome-gated (outcome_known_date < order time), smoothing k=20, prior = training-period late rate",
+      "per_mode_val": {
+        "Standard Class": 0.5193780287268767,
+        "Second Class": 0.5706983525166281
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E5",
+      "title": "E5 CatBoost (native categorical)",
+      "n_features": 27,
+      "val_auc_mean": 0.7662243336235128,
+      "val_auc_std": 0.001531204622270848,
+      "delta": -0.0014768353853169326,
+      "delta_ci": [
+        -0.004314921612516292,
+        0.0012449918079422853
+      ],
+      "runtime_s": 86.6,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "depth 8, lr 0.06, 80 iterations (chosen on an inner chronological 15% of TRAIN, inner AUC 0.7734)",
+      "per_mode_val": {
+        "Standard Class": 0.5127899127845603,
+        "Second Class": 0.5556467875843201
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E6",
+      "title": "E6 logit-blend LightGBM + XGBoost + logistic regression",
+      "n_features": 27,
+      "val_auc_mean": 0.7675967624259006,
+      "val_auc_std": 0.0009250698270725084,
+      "delta": -0.00010440658292918404,
+      "delta_ci": [
+        -0.0013221901436671713,
+        0.0011654497178885698
+      ],
+      "runtime_s": 33.0,
+      "rule_a": false,
+      "rule_b": false,
+      "notes": "weights (LGBM, XGB, LR) fitted on validation: [0.91, 0.03, 0.06]; judged on cross-fitted halves (in-sample blend AUC 0.7679 is optimistic)",
+      "per_mode_val": {
+        "Standard Class": 0.5179152694916447,
+        "Second Class": 0.5832866526722958
+      },
+      "blend_weights": [
+        [
+          0.9500000000000001,
+          0.0,
+          0.04999999999999993
+        ],
+        [
+          0.9500000000000001,
+          0.0,
+          0.04999999999999993
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.8,
+          0.15000000000000002,
+          0.04999999999999993
+        ],
+        [
+          0.8500000000000001,
+          0.0,
+          0.1499999999999999
+        ]
+      ],
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    },
+    {
+      "key": "E7",
+      "title": "E7 pruned to 5 features (grouped SHAP share >= 1%)",
+      "n_features": 5,
+      "val_auc_mean": 0.7702117025245616,
+      "val_auc_std": 0.00037289091488095947,
+      "delta": 0.002510533515731872,
+      "delta_ci": [
+        -0.0009289226913448938,
+        0.006177275368722758
+      ],
+      "runtime_s": 2.2,
+      "rule_a": false,
+      "rule_b": true,
+      "notes": "kept ['Type', 'Shipping_Mode', 'Days_for_shipment_scheduled', 'value_per_item', 'order_hour']; dropped 22: ['Market', 'Order_Region', 'Order_Country', 'Customer_Segment', 'Department_Name', 'main_item_category', 'order_value', 'n_items', 'avg_discount_rate', 'is_cash', 'is_weekend', 'is_night_order', 'high_discount_flag', 'n_distinct_categories', 'order_month', 'order_dow', 'customer_prev_orders', 'customer_prev_late_rate', 'country_prev_orders', 'country_prev_late_rate', 'customer_prev_cash_share', 'days_since_prev_order']",
+      "per_mode_val": {
+        "Standard Class": 0.5275284572709764,
+        "Second Class": 0.5744278916458323
+      },
+      "rule_c": null,
+      "rule_d": null,
+      "rule_e": null,
+      "rule_f": null,
+      "promotable": false
+    }
+  ],
+  "leakage_tests": {
+    "passed": true,
+    "summary": "6 passed in 16.38s"
+  },
+  "promoted": null,
+  "runtime_s": 416.9
+}
