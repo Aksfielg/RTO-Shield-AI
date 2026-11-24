@@ -1,0 +1,5 @@
+# Optional tooling, not needed to run the pipeline, the dashboard or the tests.
+-r requirements.txt
+websockets==17.4      # tools/capture_screenshots.py (headless Chrome over CDP)
+catboost==1.2.10      # src/12_auc_experiments.py (E5)
+optuna==5.1.0         # src/12_auc_experiments.py (E1, E2)

@@ -1,13 +1,15 @@
-pandas
-numpy
-scikit-learn
-xgboost
-lightgbm
-shap
-matplotlib
-joblib
-pyarrow
-scipy
-pytest
-streamlit
-plotly
+# Direct dependencies, pinned to the versions the project was built and tested with (Python 3.13).
+# These versions require Python 3.12 or newer. requirements.lock is the full `pip freeze` of a clean install of this file.
+pandas==3.1.1
+numpy==2.5.4
+scikit-learn==1.9.1
+xgboost==3.4.1
+lightgbm==4.7.0
+shap==0.54.1
+matplotlib==3.11.2
+joblib==1.6.0
+pyarrow==26.0.1
+scipy==1.18.1
+pytest==9.2.0
+streamlit==1.67.0
+plotly==7.1.0
