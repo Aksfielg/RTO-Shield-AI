@@ -26,6 +26,8 @@ STALE = [
     ("94.4%", r"(?<![\d.])94\.4%"),
     ("synthetic dispatch", r"synthetic dispatch"),
     ("synthetic rule", r"synthetic rule"),
+    ("30-60 minutes", r"30\s*[-–]\s*60\s*min"),
+    ("Python 3.11", r"Python 3\.11|3\.11\+"),
     ('"$-" (negative-money glitch)', r"\$-"),
 ]
 UNRENDERED = ("unrendered {{ placeholder", r"\{\{")          # only meaningful in rendered documents (UI source uses {{ in f-strings)

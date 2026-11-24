@@ -67,6 +67,8 @@ TEST_DESCRIPTIONS = {
     "test_no_leakage.py": "Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only.",
     "test_no_stale_text.py": "Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder.",
     "test_pipeline.py": "Chronological splits do not overlap, scoring returns valid output, and history features contain no future information.",
+    "test_repo_hygiene.py": "Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots.",
+    "test_report_numbers.py": "report_numbers.md points every value at its JSON path and prints it correctly, and every screenshot caption names the exact order, settings and score.",
     "test_reproducibility.py": "Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores.",
     "test_rigour.py": "Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs.",
     "test_test_catalog.py": "The published test count equals the live pytest collection and every document and the app quote that same total.",

@@ -1,0 +1,89 @@
+{
+  "home": {
+    "page": "Home",
+    "file": "home.png",
+    "settings": "Default page, no controls used.",
+    "shows": "ROC-AUC 0.772 (95% CI [0.762, 0.780]); High-tier precision 88.4%",
+    "number": 1,
+    "in_readme": true,
+    "caption": "Figure 1, Home page: ROC-AUC 0.772 (95% CI [0.762, 0.780]); High-tier precision 88.4%. Settings: Default page, no controls used."
+  },
+  "score-order": {
+    "page": "Score an Order",
+    "file": "score-order.png",
+    "settings": "Preset 'Real high-risk order #67041' selected (all form fields loaded from that holdout row).",
+    "shows": "preset order #67041, Second Class, payment type DEBIT, scored 79.9% (HIGH tier, flagged); for contrast, Custom input with its default values (Standard Class, CASH) scores 38.7% and Custom input Second Class + CASH scores 79.5%",
+    "facts": {
+      "preset_order_id": 67041,
+      "preset_mode": "Second Class",
+      "preset_type": "DEBIT",
+      "preset_score": 0.79939,
+      "preset_tier": "High",
+      "custom_default": {
+        "mode": "Standard Class",
+        "type": "CASH",
+        "score": 0.386667
+      },
+      "custom_second_class_cash": {
+        "score": 0.795276
+      }
+    },
+    "number": 2,
+    "in_readme": true,
+    "caption": "Figure 2, Score an Order page: preset order #67041, Second Class, payment type DEBIT, scored 79.9% (HIGH tier, flagged); for contrast, Custom input with its default values (Standard Class, CASH) scores 38.7% and Custom input Second Class + CASH scores 79.5%. Settings: Preset 'Real high-risk order #67041' selected (all form fields loaded from that holdout row)."
+  },
+  "real-orders": {
+    "page": "Real Test Orders",
+    "file": "real-orders.png",
+    "settings": "Default filters (Shipping mode = All, Actual outcome = All); the first order in the dropdown is shown in detail.",
+    "shows": "order #67035, Same Day, payment type TRANSFER, scored 79.5% (HIGH), actually late",
+    "number": 3,
+    "in_readme": false,
+    "caption": "Figure 3, Real Test Orders page: order #67035, Same Day, payment type TRANSFER, scored 79.5% (HIGH), actually late. Settings: Default filters (Shipping mode = All, Actual outcome = All); the first order in the dropdown is shown in detail."
+  },
+  "impact": {
+    "page": "Impact Simulator",
+    "file": "impact.png",
+    "settings": "Default controls: failed delivery $15.00, intervention $2.50, modes Same Day + Second Class + Standard Class (First Class excluded), 30% success inside, 0% outside, policy 'Flag High tier'.",
+    "shows": "3,205 orders targeted, 2,832 late orders reached, net benefit -$1,739.50",
+    "number": 4,
+    "in_readme": false,
+    "caption": "Figure 4, Impact Simulator page: 3,205 orders targeted, 2,832 late orders reached, net benefit -$1,739.50. Settings: Default controls: failed delivery $15.00, intervention $2.50, modes Same Day + Second Class + Standard Class (First Class excluded), 30% success inside, 0% outside, policy 'Flag High tier'."
+  },
+  "performance": {
+    "page": "Performance",
+    "file": "performance.png",
+    "settings": "Default tab 'Model comparison'.",
+    "shows": "test ROC-AUC 0.772, PR-AUC 0.836, High-tier precision 88.4%, ECE 0.007",
+    "number": 5,
+    "in_readme": true,
+    "caption": "Figure 5, Performance page: test ROC-AUC 0.772, PR-AUC 0.836, High-tier precision 88.4%, ECE 0.007. Settings: Default tab 'Model comparison'."
+  },
+  "robustness": {
+    "page": "Robustness",
+    "file": "robustness.png",
+    "settings": "Default tab 'Per shipping mode'.",
+    "shows": "per-mode ROC-AUC with 95% CIs; Standard Class 0.529",
+    "number": 6,
+    "in_readme": false,
+    "caption": "Figure 6, Robustness page: per-mode ROC-AUC with 95% CIs; Standard Class 0.529. Settings: Default tab 'Per shipping mode'."
+  },
+  "limitations": {
+    "page": "Limitations",
+    "file": "limitations.png",
+    "settings": "Default view, no controls.",
+    "shows": "the six limitation cards (no numbers are the subject of this figure)",
+    "number": 7,
+    "in_readme": false,
+    "caption": "Figure 7, Limitations page: the six limitation cards (no numbers are the subject of this figure). Settings: Default view, no controls."
+  },
+  "batch": {
+    "page": "Batch Scoring",
+    "file": "batch.png",
+    "settings": "Button '50 test orders (with target)' clicked (50 holdout orders, sample seed 42).",
+    "shows": "50 orders: 32 Low / 4 Medium / 14 High; batch ROC-AUC 0.814 (a demo sample, not a result)",
+    "number": 8,
+    "in_readme": false,
+    "caption": "Figure 8, Batch Scoring page: 50 orders: 32 Low / 4 Medium / 14 High; batch ROC-AUC 0.814 (a demo sample, not a result). Settings: Button '50 test orders (with target)' clicked (50 holdout orders, sample seed 42)."
+  }
+}

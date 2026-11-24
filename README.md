@@ -62,7 +62,11 @@ If you have never seen this project before, read the next section, then jump to 
 |---|---|---|
 | ![Home page](docs/screenshots/home.png) | ![Score an Order page](docs/screenshots/score-order.png) | ![Performance page](docs/screenshots/performance.png) |
 
-*Screenshots of the final dashboard (all eight pages are in [`docs/screenshots/`](docs/screenshots/)).*
+- Figure 1, Home page: ROC-AUC 0.772 (95% CI [0.762, 0.780]); High-tier precision 88.4%. Settings: Default page, no controls used.
+- Figure 2, Score an Order page: preset order #67041, Second Class, payment type DEBIT, scored 79.9% (HIGH tier, flagged); for contrast, Custom input with its default values (Standard Class, CASH) scores 38.7% and Custom input Second Class + CASH scores 79.5%. Settings: Preset 'Real high-risk order #67041' selected (all form fields loaded from that holdout row).
+- Figure 5, Performance page: test ROC-AUC 0.772, PR-AUC 0.836, High-tier precision 88.4%, ECE 0.007. Settings: Default tab 'Model comparison'.
+
+*Screenshots of the final dashboard; all eight pages are in [`docs/screenshots/`](docs/screenshots/) and every caption (exact order, settings and score) is listed in [`docs/figure_captions.md`](docs/figure_captions.md).*
 
 ---
 
