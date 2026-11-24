@@ -21,7 +21,7 @@
 | 9 | Label-shuffle AUC | **0.496** (val 0.495) | Chance-level when labels are shuffled: no leakage artefact |
 | 10 | Cancel / fraud orders | **2,855**, all labelled on-time | Why TRANSFER looks protective: gap -9.1 pp → -0.0 pp once removed |
 
-**Also know:** the suite has 160 automated tests (18 files); the full pipeline reruns in 8.9 minutes on Python 3.13.3; split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders (cancelled/fraud removed; CI [-0.0031, 0.0091]).
+**Also know:** the suite has 185 automated tests (20 files); the full pipeline reruns in 11.6 minutes on Python 3.13.3; split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders (cancelled/fraud removed; CI [-0.0031, 0.0091]).
 
 ---
 

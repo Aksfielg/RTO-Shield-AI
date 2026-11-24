@@ -181,3 +181,17 @@ def test_demo_bundle_lists_exactly_what_the_app_needs_and_stays_out_of_git():
     if z.exists():
         names = set(zipfile.ZipFile(z).namelist())
         assert set(mod.FILES) <= names and "DEMO_ARTIFACTS.txt" in names
+
+
+# ------------------------------------------------------------------ CI skip list
+def test_artifact_skip_list_names_real_tests():
+    """tests/conftest.py skips artefact-dependent tests when the models are absent (CI); a renamed test must not silently escape that list."""
+    spec = importlib.util.spec_from_file_location("conftest_tool", ROOT / "tests" / "conftest.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", "tests/"], cwd=ROOT,
+                         capture_output=True, text=True, env={**os.environ, "PYTHONUTF8": "1"}).stdout
+    collected = {ln.split("::", 1)[0].split("/")[-1] + "::" + ln.split("::", 1)[1] for ln in out.splitlines() if "::" in ln}
+    unknown = sorted(mod.NEEDS_ARTEFACTS - collected)
+    assert not unknown, f"conftest.py lists tests that no longer exist: {unknown}"
+    assert len(mod.NEEDS_ARTEFACTS) > 20

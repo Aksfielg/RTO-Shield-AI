@@ -60,6 +60,8 @@ TESTS_DIR = Path(__file__).resolve().parent.parent / "tests"
 TEST_DESCRIPTIONS = {
     "test_app_pages.py": "Opens every dashboard page with Streamlit AppTest: no exceptions, no empty cards, no negative-money formatting glitches, plus page-specific content checks.",
     "test_auc_ceiling.py": "Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance.",
+    "test_ceiling_and_challengers.py": "Lookup-table ceiling analysis: lookup tables, Same Day per-mode helper, bootstrap helpers and the split the analysis uses.",
+    "test_operating_points.py": "Operating points: thresholds are chosen on validation only, metrics match scikit-learn, and the review-capacity table values are right.",
     "test_consistency.py": "Docs, app and final_metrics.json agree; tiers cover every test order; flagged equals the High tier; no cutoff is hand-typed in code.",
     "test_dashboard_fixes.py": "Regression tests for the dashboard fixes: preset widget state, dynamic Impact caption, per-mode flagging totals, chart label room, display-only country names and toolbar mode.",
     "test_imports.py": "Smoke test: every project module imports and its key functions are callable.",

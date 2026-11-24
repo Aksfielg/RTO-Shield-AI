@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-11-24 16:12:30",
+    "generated": "2026-11-24 17:53:36",
     "model_scope": "FINAL tuned LightGBM + isotonic calibration only",
     "sources": [
       "models/thresholds.json",
@@ -140,7 +140,7 @@
       "roc_auc": 0.7276,
       "pr_auc": 0.7445,
       "brier": 0.1976,
-      "precision_at_top10pct": 0.9514,
+      "precision_at_top10pct": 0.944,
       "ece": 0.0107
     },
     {
@@ -2140,16 +2140,16 @@
     "stop_and_review": true
   },
   "run": {
-    "total_minutes": 8.9,
+    "total_minutes": 11.6,
     "python": "3.13.3",
     "python_short": "3.13",
     "platform": "Windows-11-10.0.26300-SP0",
     "cpu_threads": 12,
-    "finished": "2026-11-24 16:15:58"
+    "finished": "2026-11-24 18:00:11"
   },
   "tests": {
-    "total": 160,
-    "n_files": 18,
+    "total": 185,
+    "n_files": 20,
     "source": "pytest --collect-only -q tests/",
     "by_file": [
       {
@@ -2161,6 +2161,11 @@
         "file": "test_auc_ceiling.py",
         "tests": 3,
         "description": "Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance."
+      },
+      {
+        "file": "test_ceiling_and_challengers.py",
+        "tests": 10,
+        "description": "Lookup-table ceiling analysis: lookup tables, Same Day per-mode helper, bootstrap helpers and the split the analysis uses."
       },
       {
         "file": "test_consistency.py",
@@ -2179,7 +2184,7 @@
       },
       {
         "file": "test_metrics_reporting.py",
-        "tests": 9,
+        "tests": 12,
         "description": "Metric functions, bootstrap confidence intervals and the batch small-sample rules."
       },
       {
@@ -2193,13 +2198,18 @@
         "description": "Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder."
       },
       {
+        "file": "test_operating_points.py",
+        "tests": 11,
+        "description": "Operating points: thresholds are chosen on validation only, metrics match scikit-learn, and the review-capacity table values are right."
+      },
+      {
         "file": "test_pipeline.py",
         "tests": 4,
         "description": "Chronological splits do not overlap, scoring returns valid output, and history features contain no future information."
       },
       {
         "file": "test_repo_hygiene.py",
-        "tests": 12,
+        "tests": 13,
         "description": "Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots."
       },
       {

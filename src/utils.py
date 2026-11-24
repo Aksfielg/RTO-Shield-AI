@@ -153,13 +153,27 @@ def precision_at_k(
     y_prob : array of predicted positive-class probabilities.
     k      : fraction of rows to consider (default 0.10 = top 10 %).
 
+    Ties
+    ----
+    Rows tied with the cut-off score are interchangeable, so which of them
+    land in the top-k must not depend on sort order. Rows scoring strictly
+    above the cut-off are counted in full; the tied block fills the remaining
+    slots at the block's average outcome (its expected contribution under a
+    random order). The result is deterministic and invariant to row order.
+
     Returns
     -------
     float : precision@k
     """
-    n = max(1, int(np.ceil(len(y_true) * k)))
-    top_idx = np.argsort(y_prob)[::-1][:n]
-    return float(np.mean(y_true[top_idx]))
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    n = min(len(y_true), max(1, int(np.ceil(len(y_true) * k))))
+    cutoff = np.sort(y_prob)[::-1][n - 1]
+    above = y_prob > cutoff
+    tied = y_prob == cutoff
+    slots = n - int(above.sum())
+    expected_pos = float(y_true[above].sum()) + slots * float(y_true[tied].mean())
+    return expected_pos / n
 
 
 def expected_calibration_error(

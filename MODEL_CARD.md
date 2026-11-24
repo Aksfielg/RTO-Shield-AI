@@ -2,7 +2,7 @@
 
 <!-- GENERATED FILE: edit templates/MODEL_CARD.md.tmpl, then run `python src/11_render_docs.py`. -->
 
-> Metrics generated 2026-11-24 16:12:30 from `outputs/final_metrics.json` and `models/thresholds.json`.
+> Metrics generated 2026-11-24 17:53:36 from `outputs/final_metrics.json` and `models/thresholds.json`.
 > Dataset: Constante et al. 2019, Mendeley Data V5, DOI 10.17632/8gx2fvg2k6.5
 
 ---
@@ -303,6 +303,10 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 | Standard Class | 0.5292 | 0.5278 | 0.3983 | 0.3993 |
 | Second Class | 0.5666 | 0.5623 | 0.8044 | 0.7892 |
 
+### Ceiling analysis
+
+A separate, read-only study (`src/12_ceiling_and_challengers.py`, results in `outputs/ceiling_and_challengers.md`) measures how far simple group-mean lookup tables get on the same chronological test split, using `Shipping_Mode`, a `same_day_pm` flag (Same Day orders placed from 12:00), `Type` and `order_hour`. It also trains per-shipping-mode LightGBM challengers with a random-hash control feature (`Customer_Id % 7`), compares the 3-column lookup with this model using a paired bootstrap of the AUC difference, and repeats the lookup-vs-LightGBM comparison over 4 expanding time windows. Read the report before attributing predictive value to this model beyond what a small lookup table on shipping mode, the Same Day afternoon cut-off and payment type already provides. Figures are in the report and are deliberately not copied into this card.
+
 ---
 
 ## 10. Ethical Notes
@@ -318,9 +322,9 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 
 ---
 
-**Automated tests:** the repository ships 160 automated tests (pytest, 18 files) covering leakage, split chronology, metric reporting, document/app consistency, the payment-type disclosure, reproducibility and every dashboard page.
+**Automated tests:** the repository ships 185 automated tests (pytest, 20 files) covering leakage, split chronology, metric reporting, document/app consistency, the payment-type disclosure, reproducibility and every dashboard page.
 
-**Reproducibility:** a full `python run_all.py` took 8.9 minutes on Python 3.13.3 (Windows-11-10.0.26300-SP0); the supported range is Python 3.12 or newer. The raw dataset (Mendeley Data V5, 180,519 rows × 53 columns, SHA-256 `fa6d022ed437155e1a2f0378710602848703c8a7f203f7ff5d77805bf8480aa6`) is verified before processing and is not redistributed (CC BY 4.0). Code licence: MIT (`LICENSE`).
+**Reproducibility:** a full `python run_all.py` took 11.6 minutes on Python 3.13.3 (Windows-11-10.0.26300-SP0); the supported range is Python 3.12 or newer. The raw dataset (Mendeley Data V5, 180,519 rows × 53 columns, SHA-256 `fa6d022ed437155e1a2f0378710602848703c8a7f203f7ff5d77805bf8480aa6`) is verified before processing and is not redistributed (CC BY 4.0). Code licence: MIT (`LICENSE`).
 
 ## 11. Files
 
@@ -333,6 +337,7 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 | `outputs/final_metrics.json` | Every reported number (single source of truth) |
 | `outputs/report_tables.md` | All tables in paste-ready form (generated) |
 | `outputs/verification_findings.md` | Label-artifact and confound verification |
+| `outputs/ceiling_and_challengers.md` | Lookup-table ceiling and challenger comparison (`src/12_ceiling_and_challengers.py`) |
 
 ---
 

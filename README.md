@@ -122,7 +122,7 @@ The trained model files and the processed order table are **not stored in git** 
 | Route | Time | You need | What you do |
 |---|---|---|---|
 | **A. Demo bundle (fastest)** | no pipeline run; mostly download and install time | access to this repository's GitHub **Releases** page | Download `demo_artifacts.zip` from the release `v1.0-viva` and unzip it in the project folder, next to `app.py` |
-| **B. Rebuild from the raw data** | about 8.9 minutes of pipeline time (measured) | the raw DataCo CSV | Download the dataset ([section 8](#8-the-data)) and run the full pipeline ([section 16](#16-rebuild-everything-from-scratch)) |
+| **B. Rebuild from the raw data** | about 11.6 minutes of pipeline time (measured) | the raw DataCo CSV | Download the dataset ([section 8](#8-the-data)) and run the full pipeline ([section 16](#16-rebuild-everything-from-scratch)) |
 
 ### What you need
 
@@ -553,7 +553,10 @@ Beyond training, the pipeline checks the model's own claims: a **label-shuffle t
 | 9 | `09_verification.py` | Label-artifact, payment-confound, score-cluster and segment studies | `verification_findings.md` |
 | 10 | `10_finalize.py` | Computes **every reported number once** | `outputs/final_metrics.json` |
 | 11 | `11_experiments.py` | Extra experiments (segment models, alternative targets); **never replaces the final model** | `experiments.md` / `.json` |
-| 12 | `11_render_docs.py` | Renders `README.md`, `MODEL_CARD.md`, `docs/VIVA_CHEATSHEET.md`, `report_tables.md` from templates + JSON | the documents |
+| 12 | `12_ceiling_and_challengers.py` | Lookup-table ceiling, per-mode LightGBM challengers, paired bootstrap vs the shipped model, expanding-window check (read-only) | `ceiling_and_challengers.md` |
+| 13 | `13_operating_points.py` | Validation-chosen thresholds with test CIs and a review-capacity table (read-only) | `operating_points.md` |
+| 14 | `11b_figure_captions.py` | Writes the exact order, settings and score behind every screenshot and checks them against the text read from the page | `docs/figure_captions.md` |
+| 15 | `11_render_docs.py` | Renders `README.md`, `MODEL_CARD.md`, `docs/VIVA_CHEATSHEET.md`, `report_tables.md` from templates + JSON | the documents |
 
 (`01_inspect_data.py` is an optional helper that profiles the raw CSV; `run_all.py` does not need it.)
 
@@ -688,6 +691,26 @@ Same Day exceeds a 5 pp gap. Reported only; no per-mode recalibration.
 
 Threshold metrics use each ablated model's OWN max-F1 threshold chosen on validation. Delta = ROC-AUC(all features) - ROC-AUC(ablated), paired bootstrap, * = CI excludes 0. History features add NO significant gain: ROC-AUC(all) - ROC-AUC(no history) = +0.0008 (95% paired-bootstrap CI [-0.0017, +0.0033] includes 0 or is negative); PR-AUC is 0.8362 with history vs 0.8362 without.
 
+### Ceiling analysis and operating points
+
+Two read-only studies sit on top of the shipped model; neither modifies anything in `models/`, and their figures (with 95% bootstrap CIs) live in the generated reports rather than here.
+
+`src/12_ceiling_and_challengers.py` -> `outputs/ceiling_and_challengers.md` asks how much of the model's test ROC-AUC simple group-mean lookup tables reproduce, and whether challengers can beat it. It reuses the chronological 70/15/15 split from `02_train.py`.
+
+- **Lookup tables** (fit on train+val): `Shipping_Mode`; plus `same_day_pm` (Same Day orders placed from 12:00); plus `Type`; plus `order_hour`.
+- **Per-mode LightGBM** with early stopping on validation and a random-hash control feature (`Customer_Id % 7`) to expose noise-fitting.
+- **Paired bootstrap** of the AUC difference between the 3-column lookup and the shipped model on the same test rows.
+- **4-fold expanding-window time check**, lookup vs LightGBM.
+
+`src/13_operating_points.py` -> `outputs/operating_points.md` picks thresholds on validation only (max balanced accuracy, max MCC, max accuracy), reports them on test with bootstrap CIs, and tabulates review capacity (precision, recall and lift when reviewing the top 10/20/30/40% of orders by raw score).
+
+Both run as part of `run_all.py`, or on their own:
+
+```bash
+python src/12_ceiling_and_challengers.py
+python src/13_operating_points.py
+```
+
 ---
 
 ## 13. Honest limitations: read before you trust a number
@@ -792,7 +815,7 @@ Only needed if you want to regenerate the data, models and documents yourself.
 python run_all.py
 ```
 
-A full run took **8.9 minutes** on Python 3.13.3 (Windows-11-10.0.26300-SP0, 12 CPU threads); expect longer on slower hardware. It stops on the first failing script and writes `outputs/run_log.txt` (which also records the total minutes and the Python version). When it finishes it stores those two values in `final_metrics.json` (`run.total_minutes`, `run.python`) and re-renders the documents, so this paragraph always reports the latest run. The run is deterministic: running it twice yields the same final model.
+A full run took **11.6 minutes** on Python 3.13.3 (Windows-11-10.0.26300-SP0, 12 CPU threads); expect longer on slower hardware. It stops on the first failing script and writes `outputs/run_log.txt` (which also records the total minutes and the Python version). When it finishes it stores those two values in `final_metrics.json` (`run.total_minutes`, `run.python`) and re-renders the documents, so this paragraph always reports the latest run. The run is deterministic: running it twice yields the same final model.
 
 Or run individual steps (in this order):
 
@@ -808,6 +831,8 @@ python src/08_sanity_checks.py        # sanity checks
 python src/09_verification.py         # label-artifact / confound studies
 python src/10_finalize.py             # -> outputs/final_metrics.json
 python src/11_experiments.py          # extra experiments (read-only)
+python src/12_ceiling_and_challengers.py  # lookup ceiling + challengers (read-only)
+python src/13_operating_points.py     # validation-chosen thresholds + capacity (read-only)
 python src/11_render_docs.py          # regenerate README, MODEL_CARD, report_tables
 ```
 
@@ -825,20 +850,22 @@ On Windows, `run_all.bat` does the same as `python run_all.py` after activating 
 pytest tests/ -q
 ```
 
-The suite has **160 automated tests** in 18 files:
+The suite has **185 automated tests** in 20 files:
 
 | Test file | Tests | What it protects |
 |---|---|---|
 | `test_app_pages.py` | 26 | Opens every dashboard page with Streamlit AppTest: no exceptions, no empty cards, no negative-money formatting glitches, plus page-specific content checks. |
 | `test_auc_ceiling.py` | 3 | Leakage tripwire: the headline AUC stays under the honest ceiling, the weak shipping modes stay near chance, and shuffled labels score at chance. |
+| `test_ceiling_and_challengers.py` | 10 | Lookup-table ceiling analysis: lookup tables, Same Day per-mode helper, bootstrap helpers and the split the analysis uses. |
 | `test_consistency.py` | 10 | Docs, app and final_metrics.json agree; tiers cover every test order; flagged equals the High tier; no cutoff is hand-typed in code. |
 | `test_dashboard_fixes.py` | 12 | Regression tests for the dashboard fixes: preset widget state, dynamic Impact caption, per-mode flagging totals, chart label room, display-only country names and toolbar mode. |
 | `test_imports.py` | 1 | Smoke test: every project module imports and its key functions are callable. |
-| `test_metrics_reporting.py` | 9 | Metric functions, bootstrap confidence intervals and the batch small-sample rules. |
+| `test_metrics_reporting.py` | 12 | Metric functions, bootstrap confidence intervals and the batch small-sample rules. |
 | `test_no_leakage.py` | 2 | Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only. |
 | `test_no_stale_text.py` | 22 | Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder. |
+| `test_operating_points.py` | 11 | Operating points: thresholds are chosen on validation only, metrics match scikit-learn, and the review-capacity table values are right. |
 | `test_pipeline.py` | 4 | Chronological splits do not overlap, scoring returns valid output, and history features contain no future information. |
-| `test_repo_hygiene.py` | 12 | Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots. |
+| `test_repo_hygiene.py` | 13 | Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots. |
 | `test_report_numbers.py` | 5 | The report-numbers file points every value at its JSON path and prints it correctly, and every screenshot caption names the exact order, settings and score. |
 | `test_reproducibility.py` | 3 | Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores. |
 | `test_rigour.py` | 10 | Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs. |
@@ -847,7 +874,7 @@ The suite has **160 automated tests** in 18 files:
 | `test_type_disclosure.py` | 5 | The payment-type proxy is disclosed on Home, Robustness and Limitations, and the audit block and dagger are present. |
 | `test_ui_components.py` | 16 | Formatting helpers: percentages, money, signed differences and reason filtering. |
 | `test_ui_state.py` | 11 | Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders. |
-| **Total** | **160** | 18 files, counted with `pytest --collect-only -q tests/` |
+| **Total** | **185** | 20 files, counted with `pytest --collect-only -q tests/` |
 
 ---
 

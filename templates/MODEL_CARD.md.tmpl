@@ -187,6 +187,10 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 
 {{ @verification_segment }}
 
+### Ceiling analysis
+
+A separate, read-only study (`src/12_ceiling_and_challengers.py`, results in `outputs/ceiling_and_challengers.md`) measures how far simple group-mean lookup tables get on the same chronological test split, using `Shipping_Mode`, a `same_day_pm` flag (Same Day orders placed from 12:00), `Type` and `order_hour`. It also trains per-shipping-mode LightGBM challengers with a random-hash control feature (`Customer_Id % 7`), compares the 3-column lookup with this model using a paired bootstrap of the AUC difference, and repeats the lookup-vs-LightGBM comparison over 4 expanding time windows. Read the report before attributing predictive value to this model beyond what a small lookup table on shipping mode, the Same Day afternoon cut-off and payment type already provides. Figures are in the report and are deliberately not copied into this card.
+
 ---
 
 ## 10. Ethical Notes
@@ -217,6 +221,7 @@ Segment-only LightGBM models (trained on one shipping mode, same features):
 | `outputs/final_metrics.json` | Every reported number (single source of truth) |
 | `outputs/report_tables.md` | All tables in paste-ready form (generated) |
 | `outputs/verification_findings.md` | Label-artifact and confound verification |
+| `outputs/ceiling_and_challengers.md` | Lookup-table ceiling and challenger comparison (`src/12_ceiling_and_challengers.py`) |
 
 ---
 

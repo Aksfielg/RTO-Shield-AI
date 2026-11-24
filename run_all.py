@@ -50,6 +50,8 @@ SCRIPTS = [
     "09b_type_audit.py",           # payment-type proxy audit -> outputs/type_audit.json
     "10_finalize.py",              # writes outputs/final_metrics.json
     "11_experiments.py",           # read-only experiments -> outputs/experiments.md (never replaces the model)
+    "12_ceiling_and_challengers.py",  # read-only: lookup ceiling + challengers -> outputs/ceiling_and_challengers.md
+    "13_operating_points.py",      # read-only: validation-chosen thresholds + capacity -> outputs/operating_points.md
     "11b_figure_captions.py",      # docs/figure_captions.{md,json}: exact order/settings/score of every screenshot (checked against it)
     "11_render_docs.py",           # README / MODEL_CARD / report_tables from JSON
 ]
