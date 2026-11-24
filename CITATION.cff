@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and also cite the DataCo dataset it is built on."
+title: "RTO Shield AI - Model 1: pre-dispatch late-delivery risk scoring on public data"
+type: software
+version: "1.0"
+date-released: "2026-11-24"
+license: MIT
+abstract: >-
+  Academic prototype that scores the risk that an order is delivered late using only
+  information known before dispatch, with calibrated probabilities, three risk tiers,
+  SHAP reason codes and a Streamlit dashboard. The target is the DataCo late-delivery
+  flag, not Return-To-Origin or Cash-on-Delivery behaviour.
+authors:
+  - family-names: Chanana
+    given-names: Shitij
+  - family-names: Singla
+    given-names: Saksham
+  - family-names: Kumar
+    given-names: Rishabh
+repository-code: "https://github.com/Aksfielg/RTO-Shield-AI"
+keywords:
+  - late-delivery risk
+  - supply chain
+  - LightGBM
+  - probability calibration
+  - SHAP
+references:
+  - type: dataset
+    title: "DataCo Smart Supply Chain for Big Data Analysis"
+    authors:
+      - family-names: Constante
+        given-names: F.
+      - family-names: Silva
+        given-names: F.
+      - family-names: Pereira
+        given-names: A.
+    year: 2019
+    version: "5"
+    publisher:
+      name: Mendeley Data
+    doi: 10.17632/8gx2fvg2k6.5
+    license: CC-BY-4.0
+    notes: "Not redistributed in this repository; download it from Mendeley Data (see README)."

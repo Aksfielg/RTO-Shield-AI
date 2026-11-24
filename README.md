@@ -887,4 +887,6 @@ rto_shield_model1/
 | `outputs/sanity_checks.md` | Leakage, reproducibility and provenance checks. |
 | `outputs/report_tables.md` | Every results table in one generated file. |
 
-**Licence:** code under MIT; dataset under CC BY 4.0 — please cite Constante, Silva & Pereira (2019), DOI [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5).
+**Licence:** the code is released under the MIT licence (see [`LICENSE`](LICENSE), © 2026 Shitij Chanana, Saksham Singla, Rishabh Kumar). To cite this project use [`CITATION.cff`](CITATION.cff) (GitHub's "Cite this repository" button reads it).
+
+**Data licence:** the DataCo Smart Supply Chain dataset (Constante, Silva and Pereira, 2019, DOI [10.17632/8gx2fvg2k6.5](https://doi.org/10.17632/8gx2fvg2k6.5)) is licensed **CC BY 4.0** and is **not redistributed in this repository**. Download Mendeley Data version 5 yourself (see [section 8](#8-the-data)); anything you build from it must keep the attribution.
