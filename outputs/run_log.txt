@@ -1,10 +1,11 @@
 RTO Shield AI — Full Pipeline Run
-Started:  2026-11-24 15:08:20
+Started:  2026-11-24 16:07:02
 Python:   C:\Users\risha\Downloads\rto_shield_model1\venv\Scripts\python.exe
+Python version: 3.13.3
 ======================================================================
 
 ======================================================================
-[2026-11-24 15:08:20]  STARTING: 01_prepare.py
+[2026-11-24 16:07:02]  STARTING: 01_prepare.py
 ======================================================================
 
 ======================================================================
@@ -79,11 +80,11 @@ Python:   C:\Users\risha\Downloads\rto_shield_model1\venv\Scripts\python.exe
   [OK] No FORBIDDEN_FEATURES detected in the feature columns.
 
 
-[2026-11-24 15:08:26]  FINISHED: 01_prepare.py  |  exit_code=0  |  elapsed=5.9s
+[2026-11-24 16:07:06]  FINISHED: 01_prepare.py  |  exit_code=0  |  elapsed=3.8s
 [OK]  01_prepare.py OK
 
 ======================================================================
-[2026-11-24 15:08:26]  STARTING: 02_train.py
+[2026-11-24 16:07:06]  STARTING: 02_train.py
 ======================================================================
 
 ======================================================================
@@ -196,11 +197,11 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ======================================================================
 
 
-[2026-11-24 15:09:03]  FINISHED: 02_train.py  |  exit_code=0  |  elapsed=36.3s
+[2026-11-24 16:07:37]  FINISHED: 02_train.py  |  exit_code=0  |  elapsed=31.0s
 [OK]  02_train.py OK
 
 ======================================================================
-[2026-11-24 15:09:03]  STARTING: 05_tune_multiseed.py
+[2026-11-24 16:07:37]  STARTING: 05_tune_multiseed.py
 ======================================================================
 
 ==========================================================================
@@ -212,7 +213,7 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 
 [2/6] RandomizedSearchCV  (n_iter=30, TimeSeriesSplit(n_splits=4), scoring=roc_auc) …
 
-  RandomizedSearchCV finished in 137.4s
+  RandomizedSearchCV finished in 130.0s
   Best CV ROC-AUC : 0.7747
   Best params:
     colsample_bytree       = 0.5867
@@ -314,11 +315,11 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ==========================================================================
 
 
-[2026-11-24 15:12:02]  FINISHED: 05_tune_multiseed.py  |  exit_code=0  |  elapsed=179.5s
+[2026-11-24 16:10:17]  FINISHED: 05_tune_multiseed.py  |  exit_code=0  |  elapsed=160.2s
 [OK]  05_tune_multiseed.py OK
 
 ======================================================================
-[2026-11-24 15:12:02]  STARTING: 03_calibrate_threshold.py
+[2026-11-24 16:10:17]  STARTING: 03_calibrate_threshold.py
 ======================================================================
 
 ========================================================================
@@ -387,11 +388,11 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ========================================================================
 
 
-[2026-11-24 15:12:08]  FINISHED: 03_calibrate_threshold.py  |  exit_code=0  |  elapsed=6.4s
+[2026-11-24 16:10:21]  FINISHED: 03_calibrate_threshold.py  |  exit_code=0  |  elapsed=3.8s
 [OK]  03_calibrate_threshold.py OK
 
 ======================================================================
-[2026-11-24 15:12:08]  STARTING: 04_explain.py
+[2026-11-24 16:10:21]  STARTING: 04_explain.py
 ======================================================================
 
 ========================================================================
@@ -517,11 +518,11 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ========================================================================
 
 
-[2026-11-24 15:12:16]  FINISHED: 04_explain.py  |  exit_code=0  |  elapsed=7.2s
+[2026-11-24 16:10:28]  FINISHED: 04_explain.py  |  exit_code=0  |  elapsed=6.9s
 [OK]  04_explain.py OK
 
 ======================================================================
-[2026-11-24 15:12:16]  STARTING: 06_robustness.py
+[2026-11-24 16:10:28]  STARTING: 06_robustness.py
 ======================================================================
 
 ==========================================================================
@@ -652,11 +653,11 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ==========================================================================
 
 
-[2026-11-24 15:13:56]  FINISHED: 06_robustness.py  |  exit_code=0  |  elapsed=100.9s
+[2026-11-24 16:11:52]  FINISHED: 06_robustness.py  |  exit_code=0  |  elapsed=84.6s
 [OK]  06_robustness.py OK
 
 ======================================================================
-[2026-11-24 15:13:56]  STARTING: 07_predict_demo.py
+[2026-11-24 16:11:52]  STARTING: 07_predict_demo.py
 ======================================================================
 
 ==========================================================================
@@ -753,16 +754,16 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
 ==========================================================================
 
 
-[2026-11-24 15:14:01]  FINISHED: 07_predict_demo.py  |  exit_code=0  |  elapsed=4.7s
+[2026-11-24 16:11:56]  FINISHED: 07_predict_demo.py  |  exit_code=0  |  elapsed=3.3s
 [OK]  07_predict_demo.py OK
 
 ======================================================================
-[2026-11-24 15:14:01]  STARTING: 08_sanity_checks.py
+[2026-11-24 16:11:56]  STARTING: 08_sanity_checks.py
 ======================================================================
 ==========================================================================
   RTO Shield AI - Model 1: Sanity Checks & Quality Suite
 ==========================================================================
-  Time: 2026-11-24 15:14:03
+  Time: 2026-11-24 16:11:58
 
   [1/5] Loading pipeline data and model artifacts...
         Train: 46,026 | Val: 9,863 | Test: 9,863
@@ -808,14 +809,14 @@ LightGBM                 0.8531     0.5882     0.6963     0.7678     0.8354     
   Report successfully written.
 
 ==========================================================================
-  Sanity Checks Completed in 2.08s.
+  Sanity Checks Completed in 2.40s.
 ==========================================================================
 
-[2026-11-24 15:14:06]  FINISHED: 08_sanity_checks.py  |  exit_code=0  |  elapsed=4.4s
+[2026-11-24 16:12:00]  FINISHED: 08_sanity_checks.py  |  exit_code=0  |  elapsed=4.7s
 [OK]  08_sanity_checks.py OK
 
 ======================================================================
-[2026-11-24 15:14:06]  STARTING: 09_verification.py
+[2026-11-24 16:12:00]  STARTING: 09_verification.py
 ======================================================================
 Loading data, model and calibrator (read-only) ...
 orders=65,752  splits: train=46,026, val=9,863, test=9,863
@@ -1035,11 +1036,11 @@ CONCLUSIONS
 
 Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\verification_findings.md
 
-[2026-11-24 15:14:12]  FINISHED: 09_verification.py  |  exit_code=0  |  elapsed=6.7s
+[2026-11-24 16:12:06]  FINISHED: 09_verification.py  |  exit_code=0  |  elapsed=5.8s
 [OK]  09_verification.py OK
 
 ======================================================================
-[2026-11-24 15:14:12]  STARTING: 09b_type_audit.py
+[2026-11-24 16:12:06]  STARTING: 09b_type_audit.py
 ======================================================================
 
 ======================================================================
@@ -1071,11 +1072,11 @@ Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\verification_findings.m
   DECISION RULE: cleaned delta +0.0032 CI [-0.0031, +0.0091] -> STOP AND REVIEW (CI includes 0 or delta < 0.005)
   Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\type_audit.json and C:\Users\risha\Downloads\rto_shield_model1\outputs\type_audit.csv
 
-[2026-11-24 15:14:35]  FINISHED: 09b_type_audit.py  |  exit_code=0  |  elapsed=22.2s
+[2026-11-24 16:12:27]  FINISHED: 09b_type_audit.py  |  exit_code=0  |  elapsed=20.7s
 [OK]  09b_type_audit.py OK
 
 ======================================================================
-[2026-11-24 15:14:35]  STARTING: 10_finalize.py
+[2026-11-24 16:12:27]  STARTING: 10_finalize.py
 ======================================================================
 ==========================================================================
   RTO Shield AI - Step 10: Finalize all reported numbers
@@ -1165,6 +1166,7 @@ Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\verification_findings.m
 [8] Verification block (label artifact, TRANSFER, segment models) ...
 
   Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\final_metrics.json
+  Collected 160 tests in 18 files
 
 TIER TABLE (test)
   Low      6,104   61.9%   36.5%   41.0%
@@ -1180,16 +1182,16 @@ POLICY TABLE (test)
 
 STABILITY (flagged-share swing pp): {'High tier': 0.0, 'Precision >= 0.80': 0.0, 'Max-F1': 2.46} passed = True
 
-[2026-11-24 15:16:51]  FINISHED: 10_finalize.py  |  exit_code=0  |  elapsed=136.4s
+[2026-11-24 16:14:43]  FINISHED: 10_finalize.py  |  exit_code=0  |  elapsed=136.1s
 [OK]  10_finalize.py OK
 
 ======================================================================
-[2026-11-24 15:16:51]  STARTING: 11_experiments.py
+[2026-11-24 16:14:43]  STARTING: 11_experiments.py
 ======================================================================
 ==========================================================================
   RTO Shield AI - Step 11b: experiments (read-only)
 ==========================================================================
-  leakage: static forbidden hits=[]  pytest={'ran': True, 'passed': True, 'detail': '6 passed in 15.35s'}
+  leakage: static forbidden hits=[]  pytest={'ran': True, 'passed': True, 'detail': '6 passed in 15.51s'}
 
 [1] Segment specialists ...
   Standard Class  val 0.5196->0.5138  test 0.5292->0.5278  delta -0.0013 [-0.0113,+0.0075]  adopt=False
@@ -1203,7 +1205,7 @@ STABILITY (flagged-share swing pp): {'High tier': 0.0, 'Precision >= 0.80': 0.0,
 
   Wrote C:\Users\risha\Downloads\rto_shield_model1\outputs\experiments.md
 
-**Bottom line: nothing clears the adoption bar, so the final model stays as it is.** A variant must beat the final model on validation ROC-AUC by more than 0.01 and pass the leakage tests (passed: 6 passed in 15.35s). `Late_delivery_risk` remains the primary reported target.
+**Bottom line: nothing clears the adoption bar, so the final model stays as it is.** A variant must beat the final model on validation ROC-AUC by more than 0.01 and pass the leakage tests (passed: 6 passed in 15.51s). `Late_delivery_risk` remains the primary reported target.
 
 1. **Segment specialists.** Standard Class: global 0.529 vs specialist 0.528 (paired delta -0.0013, 95% CI -0.0113 to +0.0075; validation gain -0.0058). Second Class: global 0.567 vs specialist 0.562 (delta -0.0043, CI -0.0207 to +0.0133; validation gain -0.0105). Neither specialist beats the global model by a meaningful margin: the missing signal is in the data, not in the model structure. **Not worth adopting.**
 
@@ -1213,21 +1215,45 @@ STABILITY (flagged-share swing pp): {'High tier': 0.0, 'Precision >= 0.80': 0.0,
 
 **What adopting would change in the report.** Nothing about the model or its thresholds. The report would (a) add the cleaned-population ROC-AUC next to the all-orders figure, (b) change the Standard / Second Class wording from 'limited signal' to 'no demonstrable ranking signal on cleaned orders', (c) state that Payment type is excluded from any causal reading, and (d) show the cancel/fraud AUC as a separate secondary result, never mixed into the late-delivery metrics.
 
-[2026-11-24 15:18:01]  FINISHED: 11_experiments.py  |  exit_code=0  |  elapsed=70.4s
+[2026-11-24 16:15:52]  FINISHED: 11_experiments.py  |  exit_code=0  |  elapsed=68.8s
 [OK]  11_experiments.py OK
 
 ======================================================================
-[2026-11-24 15:18:01]  STARTING: 11_render_docs.py
+[2026-11-24 16:15:52]  STARTING: 11b_figure_captions.py
+======================================================================
+2026-11-24 16:15:54.614 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.616 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.617 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.617 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.617 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.618 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.618 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.622 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.626 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.628 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.628 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.716 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2026-11-24 16:15:54.724 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+  wrote docs\figure_captions.md and docs\figure_captions.json (8 figures, all checked against the screenshots)
+
+[2026-11-24 16:15:58]  FINISHED: 11b_figure_captions.py  |  exit_code=0  |  elapsed=6.5s
+[OK]  11b_figure_captions.py OK
+
+======================================================================
+[2026-11-24 16:15:58]  STARTING: 11_render_docs.py
 ======================================================================
   rendered README.md
   rendered MODEL_CARD.md
   rendered VIVA_CHEATSHEET.md
   rendered outputs/report_tables.md
+  rendered outputs/report_numbers.md
 
-[2026-11-24 15:18:02]  FINISHED: 11_render_docs.py  |  exit_code=0  |  elapsed=0.1s
+[2026-11-24 16:15:58]  FINISHED: 11_render_docs.py  |  exit_code=0  |  elapsed=0.2s
 [OK]  11_render_docs.py OK
 
 ======================================================================
-Pipeline complete.  Elapsed: 9.7 min
+Pipeline complete.  Elapsed: 8.9 min
+Total minutes: 8.9
+Python version: 3.13.3
 Failures: None
 Log saved to: C:\Users\risha\Downloads\rto_shield_model1\outputs\run_log.txt

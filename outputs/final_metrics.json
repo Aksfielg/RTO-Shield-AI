@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-11-24 15:30:27",
+    "generated": "2026-11-24 16:12:30",
     "model_scope": "FINAL tuned LightGBM + isotonic calibration only",
     "sources": [
       "models/thresholds.json",
@@ -2139,9 +2139,17 @@
     "cleaned_delta_below_min": true,
     "stop_and_review": true
   },
+  "run": {
+    "total_minutes": 8.9,
+    "python": "3.13.3",
+    "python_short": "3.13",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "cpu_threads": 12,
+    "finished": "2026-11-24 16:15:58"
+  },
   "tests": {
-    "total": 143,
-    "n_files": 16,
+    "total": 160,
+    "n_files": 18,
     "source": "pytest --collect-only -q tests/",
     "by_file": [
       {
@@ -2190,6 +2198,16 @@
         "description": "Chronological splits do not overlap, scoring returns valid output, and history features contain no future information."
       },
       {
+        "file": "test_repo_hygiene.py",
+        "tests": 12,
+        "description": "Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots."
+      },
+      {
+        "file": "test_report_numbers.py",
+        "tests": 5,
+        "description": "The report-numbers file points every value at its JSON path and prints it correctly, and every screenshot caption names the exact order, settings and score."
+      },
+      {
         "file": "test_reproducibility.py",
         "tests": 3,
         "description": "Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores."
@@ -2225,13 +2243,5 @@
         "description": "Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders."
       }
     ]
-  },
-  "run": {
-    "total_minutes": 9.7,
-    "python": "3.13.3",
-    "python_short": "3.13",
-    "platform": "Windows-11-10.0.26300-SP0",
-    "cpu_threads": 12,
-    "finished": null
   }
 }

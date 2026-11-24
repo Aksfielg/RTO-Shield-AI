@@ -131,7 +131,8 @@ def test_windows_launchers_and_utf8_defaults():
     for py in ("run_all.py", "app.py"):
         assert 'os.environ.setdefault("PYTHONUTF8", "1")' in (ROOT / py).read_text(encoding="utf-8"), py
     # run_all must decode its children's UTF-8 output itself (a fresh-clone run on a cp1252 console crashed without this)
-    assert 'encoding="utf-8"' in (ROOT / "run_all.py").read_text(encoding="utf-8").split("subprocess.Popen(")[1].split(")")[0]
+    popen = (ROOT / "run_all.py").read_text(encoding="utf-8").split("subprocess.Popen(")[1].split("for line in proc.stdout")[0]
+    assert 'encoding="utf-8"' in popen
 
 
 # ------------------------------------------------------------------ git tracks no artefacts
@@ -161,3 +162,22 @@ def test_screenshots_exist_and_the_readme_embeds_only_existing_ones():
     assert len(embedded) >= 3
     for l in embedded:
         assert (ROOT / l).exists(), f"README embeds a missing image: {l}"
+
+
+# ------------------------------------------------------------------ demo bundle
+def test_demo_bundle_lists_exactly_what_the_app_needs_and_stays_out_of_git():
+    import zipfile
+    spec = importlib.util.spec_from_file_location("bundle_tool", ROOT / "tools" / "build_demo_bundle.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    need = {"models/final_model.joblib", "models/final_calibrator.joblib", "models/preprocessor.joblib", "models/thresholds.json",
+            "outputs/final_metrics.json", "data/processed/orders.parquet"}
+    assert need <= set(mod.FILES)
+    assert not any("DataCoSupplyChainDataset" in f for f in mod.FILES), "the raw dataset must never be in the bundle"
+    assert all((ROOT / f).exists() for f in mod.FILES)
+    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "dist/" in ignore and "*.zip" in ignore
+    z = ROOT / "dist" / "demo_artifacts.zip"
+    if z.exists():
+        names = set(zipfile.ZipFile(z).namelist())
+        assert set(mod.FILES) <= names and "DEMO_ARTIFACTS.txt" in names

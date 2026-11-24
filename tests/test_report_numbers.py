@@ -12,7 +12,12 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 FM = json.loads((ROOT / "outputs" / "final_metrics.json").read_text(encoding="utf-8"))
 THR = json.loads((ROOT / "models" / "thresholds.json").read_text(encoding="utf-8"))
-REPORT = (ROOT / "outputs" / "report_numbers.md").read_text(encoding="utf-8")
+
+
+def _report() -> str:
+    """Read when a test uses it, not at import: `pytest --collect-only` runs inside 10_finalize.py, before this file exists."""
+    return (ROOT / "outputs" / "report_numbers.md").read_text(encoding="utf-8")
+
 
 
 def resolve(path: str, root=FM):
@@ -25,7 +30,7 @@ def resolve(path: str, root=FM):
 
 
 def _rows():
-    for line in REPORT.splitlines():
+    for line in _report().splitlines():
         m = re.match(r"\| (.+?) \| (.+?) \| `final_metrics.json` → `([^`]+)` \|$", line)
         if m and m.group(1) not in ("Quantity",):
             yield m.group(1), m.group(2), m.group(3)
@@ -51,6 +56,7 @@ def test_every_two_column_row_points_at_a_real_json_value_and_prints_it_correctl
 
 
 def test_report_contains_every_requested_table():
+    REPORT = _report()
     for heading in ("1. Test ROC-AUC", "2. PR-AUC", "3. Calibration", "4. Risk tiers with Wilson 95% intervals", "5. Per shipping mode",
                     "6. Per-mode flagging", "7. Model comparison with paired deltas", "8. Feature ablation", "9. Plain-rule baseline",
                     "10. Rolling-origin backtest", "11. Population Stability Index", "12. Label-shuffle check", "13. Split sizes and dates",
@@ -73,11 +79,16 @@ def test_report_contains_every_requested_table():
 
 
 # ------------------------------------------------------------------ figure captions
-CAP = json.loads((ROOT / "docs" / "figure_captions.json").read_text(encoding="utf-8"))
-CAP_MD = (ROOT / "docs" / "figure_captions.md").read_text(encoding="utf-8")
+def _cap():
+    return json.loads((ROOT / "docs" / "figure_captions.json").read_text(encoding="utf-8"))
+
+
+def _cap_md():
+    return (ROOT / "docs" / "figure_captions.md").read_text(encoding="utf-8")
 
 
 def test_every_screenshot_has_a_caption_and_every_readme_image_is_captioned_by_name():
+    CAP, CAP_MD = _cap(), _cap_md()
     shots = {p.name for p in (ROOT / "docs" / "screenshots").glob("*.png")}
     assert {f["file"] for f in CAP.values()} == shots
     for f in CAP.values():
@@ -89,6 +100,7 @@ def test_every_screenshot_has_a_caption_and_every_readme_image_is_captioned_by_n
 
 
 def test_score_order_caption_names_preset_versus_custom_with_exact_scores():
+    CAP, CAP_MD = _cap(), _cap_md()
     import predict
     from ui import data
     from ui.pages import score_order
@@ -107,6 +119,7 @@ def test_score_order_caption_names_preset_versus_custom_with_exact_scores():
 
 
 def test_captions_were_checked_against_the_text_read_from_the_screenshots():
+    CAP = _cap()
     manifest = json.loads((ROOT / "docs" / "screenshots" / "manifest.json").read_text(encoding="utf-8"))["pages"]
     assert set(manifest) == set(CAP)
     so = manifest["score-order"]

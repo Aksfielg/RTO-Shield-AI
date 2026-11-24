@@ -21,7 +21,7 @@
 | 9 | Label-shuffle AUC | **0.496** (val 0.495) | Chance-level when labels are shuffled: no leakage artefact |
 | 10 | Cancel / fraud orders | **2,855**, all labelled on-time | Why TRANSFER looks protective: gap -9.1 pp → -0.0 pp once removed |
 
-**Also know:** the suite has 143 automated tests (16 files); the full pipeline reruns in 9.7 minutes on Python 3.13.3; split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders (cancelled/fraud removed; CI [-0.0031, 0.0091]).
+**Also know:** the suite has 160 automated tests (18 files); the full pipeline reruns in 8.9 minutes on Python 3.13.3; split sizes 46,026 / 9,863 / 9,863 (train ends 2017-03-16, validation ends 2017-09-05, test to 2018-01-31); backtest AUC 0.770 ± 0.007; history features change AUC by 0.0008 (CI -0.0017 to 0.0033); dropping the payment features lowers ROC-AUC by 0.0165 on all orders but only 0.0032 on cleaned orders (cancelled/fraud removed; CI [-0.0031, 0.0091]).
 
 ---
 
@@ -68,16 +68,16 @@ Orders are a time series and the customer-history features look backwards. A ran
 Calibrated scores fall in a few clusters (only 41 distinct values on test), so a cutoff that sits on a cluster flips thousands of orders with a tiny shift. I place cutoffs at midpoints of low-density gaps, chosen on validation only, and verify them on test. Shifting any threshold by ±0.02 moves the flagged share by at most 2.5 points (High tier and precision ≥ 0.80: 0.0), against a hard limit of 5. An earlier version of the precision threshold sat on a cluster edge and was fragile; that is why I redesigned the cutoffs.
 
 **9. Is the model calibrated? How do you know?**
-Isotonic regression fitted on the validation set cuts test ECE from 0.050 to 0.007 (Brier 0.186 → 0.183). Two caveats I volunteer: validation ECE after calibration is ~0 by construction (so only the test figure counts), and calibration is good overall but not guaranteed inside every mode; Same Day, for example, is off by -5.2 pp (mean predicted minus actual).
+Isotonic regression fitted on the validation set cuts test ECE from 0.050 to 0.007 with 10 equal-width bins (0.013 with 10 equal-frequency bins, because ECE is a size-weighted average and a few small bins can sit off the diagonal; Brier 0.186 → 0.183). Two caveats I volunteer: validation ECE after calibration is ~0 by construction (so only the test figure counts), and calibration is good overall but not guaranteed inside every mode; Same Day, for example, is off by -5.2 pp (mean predicted minus actual).
 
 **10. Why LightGBM, and how much did tuning help?**
-Five models were compared on the same split; the tree models were within a few thousandths of AUC of each other, and LightGBM was best on validation. Tuning moved validation ROC-AUC from 0.764 to 0.768: a small gain, chosen on validation with time-series cross-validation, never on test. Ten seeds give ROC-AUC 0.771 ± 0.001.
+Five models were compared on the same split; the tree models were within a few thousandths of AUC of each other, and LightGBM was best on validation. Tuning moved validation ROC-AUC from 0.764 to 0.768: a small gain, chosen on validation with time-series cross-validation, never on test. Ten seeds give ROC-AUC 0.771 ± 0.001. On the test set the default LightGBM is -0.0038 ROC-AUC below the tuned model (paired-bootstrap 95% CI -0.0075 to +0.0000), a borderline difference, so I describe the benefit of tuning as small and not demonstrated (see question 18).
 
 **11. How do you know there is no leakage?**
 (a) Forbidden columns (post-dispatch outcomes, PII, the secondary target) are excluded and tested. (b) History features only count orders whose outcome was already known before the current order; a brute-force pytest recomputes them from the raw data. (c) Encoders and scalers are fitted on train only. (d) A label-shuffle test gives AUC 0.496, i.e. chance. The limit of this claim: these checks rule out *my* pipeline leaking; they cannot rule out leakage built into the public dataset's labels, which is exactly what the near rule-based labels and the TRANSFER artefact are.
 
 **12. High-tier precision is 88%. Is that real skill?**
-Partly base rate. The top decile is 100.0% First Class, and First Class orders are 95% late anyway, so a lot of that precision is the dispatch rule. The tier is still useful operationally (it flags 32% of orders at 88% precision vs 55% overall), but I would not present it as a discovery about couriers.
+Partly base rate. The top decile is 100.0% First Class, and First Class orders are 95% late anyway, so a lot of that precision is the dispatch rule. The tier is still useful operationally (it flags 32% of orders at 88% precision vs 55% overall), but I would not present it as a discovery about couriers. A plain rule written from train-period findings flags 37.7% of orders at 85.6% precision, comparable to the High tier (question 17), so the model's contribution is calibration, tiers and explanations rather than higher accuracy than a hand-written rule.
 
 **13. Flag-all gets F1 0.71. Why not just flag everything?**
 Because F1 rewards it when most orders are late (55%). Balanced accuracy for flag-all is 0.50 and MCC 0.00, versus 0.72 and 0.46 for the High tier. That is why F1 is never a headline here.

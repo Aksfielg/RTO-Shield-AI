@@ -4,7 +4,7 @@
 
 <!-- GENERATED FILE: edit templates/README.md.tmpl, then run `python src/11_render_docs.py`. -->
 
-If you have never seen this project before, read the next section, then jump to [Quick start](#4-quick-start-run-the-dashboard-in-5-minutes). To open the dashboard you only need the small demo bundle from the Releases page (no raw dataset, no GPU, no prior knowledge); rebuilding everything from the raw data is optional.
+If you have never seen this project before, read the next section, then jump to [Quick start](#4-quick-start-run-the-dashboard). To open the dashboard you only need the small demo bundle from the Releases page (no raw dataset, no GPU, no prior knowledge); rebuilding everything from the raw data is optional.
 
 ---
 
@@ -13,7 +13,7 @@ If you have never seen this project before, read the next section, then jump to 
 1. [The project in plain words](#1-the-project-in-plain-words)
 2. [What problem does it solve, and how?](#2-what-problem-does-it-solve-and-how)
 3. [Results at a glance](#3-results-at-a-glance)
-4. [Quick start: run the dashboard in 5 minutes](#4-quick-start-run-the-dashboard-in-5-minutes)
+4. [Quick start: run the dashboard](#4-quick-start-run-the-dashboard)
 5. [Dashboard guide: every page explained](#5-dashboard-guide-every-page-explained)
 6. [A 10-minute first-time walkthrough](#6-a-10-minute-first-time-walkthrough)
 7. [Key terms (mini glossary)](#7-key-terms-mini-glossary)
@@ -51,7 +51,7 @@ If you have never seen this project before, read the next section, then jump to 
 
 | If you are… | Start here |
 |---|---|
-| A reviewer / examiner / curious newcomer | [Quick start](#4-quick-start-run-the-dashboard-in-5-minutes) → [10-minute walkthrough](#6-a-10-minute-first-time-walkthrough) → [Limitations](#13-honest-limitations-read-before-you-trust-a-number) |
+| A reviewer / examiner / curious newcomer | [Quick start](#4-quick-start-run-the-dashboard) → [10-minute walkthrough](#6-a-10-minute-first-time-walkthrough) → [Limitations](#13-honest-limitations-read-before-you-trust-a-number) |
 | A data scientist wanting the method | [How the model is trained](#10-how-the-model-is-trained) → [Pipeline](#11-the-pipeline-step-by-step) → `MODEL_CARD.md` |
 | A developer wanting to call the model | [Using the model without the dashboard](#15-using-the-model-without-the-dashboard) |
 | Presenting the project | `docs/VIVA_CHEATSHEET.md` (numbers, demo script, examiner Q&A) |
@@ -111,23 +111,23 @@ Late deliveries are costly, but intervening on *every* order is also costly (cal
 | Risk-tier cutoffs on the calibrated score | Low below **0.4657**, High at or above **0.7423** |
 | Multi-seed stability (10 seeds) | ROC-AUC 0.7712 ± 0.0007 |
 
-**How to read this in one paragraph.** The model ranks late orders above on-time ones noticeably better than chance overall, its probabilities are well calibrated, and its High tier is far more likely to be late than average (see the tier table in [Detailed results](#12-detailed-results)). **But** the strength comes mostly from First Class and Same Day orders. For Standard Class and Second Class — a large share of volume — the model is close to a coin flip (0.5292 and 0.5666 ROC-AUC). The project reports this openly rather than hiding it inside an average.
+**How to read this in one paragraph.** The model ranks late orders above on-time ones noticeably better than chance overall, its probabilities are well calibrated overall (the per-mode view under *Calibration within shipping mode* shows where they are less so), and its High tier is far more likely to be late than average (see the tier table in [Detailed results](#12-detailed-results)). **But** the strength comes mostly from First Class and Same Day orders. For Standard Class and Second Class — a large share of volume — the model is close to a coin flip (0.5292 and 0.5666 ROC-AUC). The project reports this openly rather than hiding it inside an average.
 
 ---
 
-## 4. Quick start: run the dashboard in 5 minutes
+## 4. Quick start: run the dashboard
 
 The trained model files and the processed order table are **not stored in git** (binary artefacts and the CC BY-licensed data stay out of the repository history). There are two ways to get them, and both end in the same dashboard:
 
 | Route | Time | You need | What you do |
 |---|---|---|---|
-| **A. Demo bundle (fastest)** | about 5 minutes | access to this repository's GitHub **Releases** page | Download `demo_artifacts.zip` from the release `v1.0-viva` and unzip it in the project folder, next to `app.py` |
-| **B. Rebuild from the raw data** | about 9.7 minutes of pipeline time (measured) | the raw DataCo CSV | Download the dataset ([section 8](#8-the-data)) and run the full pipeline ([section 16](#16-rebuild-everything-from-scratch)) |
+| **A. Demo bundle (fastest)** | no pipeline run; mostly download and install time | access to this repository's GitHub **Releases** page | Download `demo_artifacts.zip` from the release `v1.0-viva` and unzip it in the project folder, next to `app.py` |
+| **B. Rebuild from the raw data** | about 8.9 minutes of pipeline time (measured) | the raw DataCo CSV | Download the dataset ([section 8](#8-the-data)) and run the full pipeline ([section 16](#16-rebuild-everything-from-scratch)) |
 
 ### What you need
 
 - **Python 3.12 or newer** (built on 3.13). The pinned scientific libraries (NumPy, SciPy, XGBoost, SHAP) themselves require Python 3.12+, so older interpreters cannot install them. Check with `python --version`.
-- **About 1 GB of free disk space** and an internet connection for installing packages.
+- **About 1 GB of free disk space** (measured: the virtual environment with all packages is about 0.75 GB; rebuilding with Route B adds about 0.5 GB of model files) and an internet connection for installing packages.
 - A modern web browser (Chrome, Edge, Firefox, Safari).
 
 ### Step-by-step
@@ -792,7 +792,7 @@ Only needed if you want to regenerate the data, models and documents yourself.
 python run_all.py
 ```
 
-A full run took **9.7 minutes** on Python 3.13.3 (Windows-11-10.0.26300-SP0, 12 CPU threads); expect longer on slower hardware. It stops on the first failing script and writes `outputs/run_log.txt` (which also records the total minutes and the Python version). When it finishes it stores those two values in `final_metrics.json` (`run.total_minutes`, `run.python`) and re-renders the documents, so this paragraph always reports the latest run. The run is deterministic: running it twice yields the same final model.
+A full run took **8.9 minutes** on Python 3.13.3 (Windows-11-10.0.26300-SP0, 12 CPU threads); expect longer on slower hardware. It stops on the first failing script and writes `outputs/run_log.txt` (which also records the total minutes and the Python version). When it finishes it stores those two values in `final_metrics.json` (`run.total_minutes`, `run.python`) and re-renders the documents, so this paragraph always reports the latest run. The run is deterministic: running it twice yields the same final model.
 
 Or run individual steps (in this order):
 
@@ -825,7 +825,7 @@ On Windows, `run_all.bat` does the same as `python run_all.py` after activating 
 pytest tests/ -q
 ```
 
-The suite has **143 automated tests** in 16 files:
+The suite has **160 automated tests** in 18 files:
 
 | Test file | Tests | What it protects |
 |---|---|---|
@@ -838,6 +838,8 @@ The suite has **143 automated tests** in 16 files:
 | `test_no_leakage.py` | 2 | Forbidden, post-dispatch and personal columns never reach the model, and history features match a brute-force recomputation from past orders only. |
 | `test_no_stale_text.py` | 22 | Docs and UI source contain none of the retired numbers or wordings, no negative-money glitch string and no unrendered template placeholder. |
 | `test_pipeline.py` | 4 | Chronological splits do not overlap, scoring returns valid output, and history features contain no future information. |
+| `test_repo_hygiene.py` | 12 | Licence and citation files, pinned dependencies and the derived Python range, the raw-data check, Windows launchers and UTF-8 defaults, untracked artefacts and screenshots. |
+| `test_report_numbers.py` | 5 | The report-numbers file points every value at its JSON path and prints it correctly, and every screenshot caption names the exact order, settings and score. |
 | `test_reproducibility.py` | 3 | Split sizes and dates match the metrics file, scoring the same orders twice gives identical results, and calibrated scores are monotone in raw scores. |
 | `test_rigour.py` | 10 | Paired-bootstrap significance, the plain-rule baseline, equal-frequency calibration, per-mode calibration, Wilson tier intervals and their rendered docs. |
 | `test_test_catalog.py` | 4 | The published test count equals the live pytest collection and every document and the app quote that same total. |
@@ -845,7 +847,7 @@ The suite has **143 automated tests** in 16 files:
 | `test_type_disclosure.py` | 5 | The payment-type proxy is disclosed on Home, Robustness and Limitations, and the audit block and dagger are present. |
 | `test_ui_components.py` | 16 | Formatting helpers: percentages, money, signed differences and reason filtering. |
 | `test_ui_state.py` | 11 | Score an Order and Impact Simulator widget state: presets load their own holdout row, no stale values carry over, and captions follow the sliders. |
-| **Total** | **143** | 16 files, counted with `pytest --collect-only -q tests/` |
+| **Total** | **160** | 18 files, counted with `pytest --collect-only -q tests/` |
 
 ---
 
@@ -890,7 +892,7 @@ rto_shield_model1/
 │   ├── reasons.py                # SHAP → plain-English reasons
 │   ├── predict.py                # score_order(), score_batch(), CLI
 │   ├── utils.py                  # metrics, bootstrap CIs, calibration helpers
-│   └── 01_prepare.py … 11_render_docs.py   # the pipeline (section 11)
+│   └── 01_prepare.py … 11_render_docs.py   # the pipeline (section 11; 11b writes the figure captions)
 ├── models/                       # thresholds.json (committed); *.joblib model files are built by the pipeline / demo bundle
 ├── outputs/                      # final_metrics.json, tables, CSVs, PNG figures, reports
 ├── templates/                    # README / MODEL_CARD / VIVA templates (documents are generated)
@@ -898,7 +900,9 @@ rto_shield_model1/
 ├── tests/                        # pytest suite
 ├── run_all.py / run_all.bat      # runs the full pipeline (the .bat activates the venv first on Windows)
 ├── run_app.bat                   # Windows: activate the venv and start the dashboard
-├── docs/screenshots/             # final-UI screenshots of all eight main pages
+├── docs/screenshots/             # final-UI screenshots of all eight main pages (+ manifest.json read by 11b)
+├── docs/figure_captions.md       # exact order, settings and score behind every screenshot (generated)
+├── tools/                        # capture_screenshots.py (headless Chrome), build_demo_bundle.py (release zip)
 ├── sample_order.json             # example input for the CLI
 ├── requirements.txt              # pinned direct dependencies (requirements.lock = full pip freeze)
 ├── pyproject.toml                # project metadata, requires-python, pytest settings
